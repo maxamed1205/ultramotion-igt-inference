@@ -1,7 +1,5 @@
 numpy
 opencv-python
-torch
-torchvision
 pyigtl
 pillow
 tqdm
