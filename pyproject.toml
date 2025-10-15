@@ -1,0 +1,38 @@
+[project]
+name = "inference-service"
+version = "0.1.0"
+description = "Service IA temps réel (D-FINE + SAM + IGTLink)"
+authors = [{ name = "Maxamed", email = "max@example.com" }]
+requires-python = ">=3.11"
+
+dependencies = [
+    # --- Core scientific stack ---
+    "numpy",
+    "opencv-python",
+    "pillow",
+    "scipy",
+    "torch==2.3.0",
+    "torchvision==0.18.0",
+
+    # --- IGT communication ---
+    "pyigtl>=0.6.0",
+
+    # --- ML & segmentation ---
+    "einops",
+    "torchmetrics",
+    "tqdm",
+    "segment-anything",
+    "transformers",
+
+    # --- (Optionnel) Web API ---
+    "fastapi",
+    "uvicorn"
+]
+
+[tool.uv]
+# indique à uv de lier le projet local
+package = true
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,36 +1,28 @@
 # ultramotion-igt-inference
 
-Prototype repository for a deployable OpenIGTLink inference service
+Prototype de service d’inférence OpenIGTLink déployable
 
-Goal
-----
-This repository contains a minimal, container-friendly skeleton for a real-time
-inference service that subscribes to an OpenIGTLink image stream (PlusServer),
-runs a segmentation pipeline (D-FINE + MobileSAM) and republishes a binary
-labelmap (`BoneMask`) back to 3D Slicer via OpenIGTLink.
+## Objectif
+Ce dépôt contient une structure minimale, compatible avec les conteneurs Docker, pour un **service d’inférence en temps réel**.  
+Ce service s’abonne à un flux d’images OpenIGTLink (provenant de **PlusServer**),  
+exécute une pipeline de segmentation (**D-FINE + MobileSAM**)  
+et republie une **carte binaire de labels (`BoneMask`)** vers **3D Slicer** via OpenIGTLink.
 
-Status
-------
-This is an initial scaffold: skeleton service, Dockerfile placeholder and CI
-workflow. Implementation of the real models and heavy GPU testing will be
-completed later.
+---
 
-Quick start (dev)
-------------------
-1. Build the container (requires NVIDIA Docker on Linux / WSL2):
+## État actuel
+Ce dépôt est une **ébauche initiale** (scaffold) :
+- service squelette fonctionnel,  
+- Dockerfile prêt pour le build,  
+- workflow CI configuré.  
 
-   # build command will be provided in the Dockerfile section
+L’intégration des modèles réels et les tests GPU intensifs seront réalisés ultérieurement.
 
-2. Start your PlusServer and Slicer clients. Configure device names:
-   - IMAGE: `Image_Ultrasound`
-   - TRANSFORM: `ImageToReference`
-   - MASK OUT: `BoneMask`
+---
 
-3. Run the service and verify it connects to PlusServer and opens a server
-   endpoint for Slicer.
+## Démarrage rapide (mode développement)
+1. **Construire le conteneur**  
+   (nécessite **NVIDIA Docker** sur Linux ou **WSL2** sous Windows) :
 
-See `docker/` and `src/` for the service skeleton.
-
-License
--------
-MIT
+   ```bash
+   # La commande de build est indiquée dans la section Dockerfile

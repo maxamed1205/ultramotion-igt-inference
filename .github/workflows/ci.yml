@@ -1,20 +1,25 @@
-name: CI
+name: CI - Ultramotion Manual   # Le nom "CI - Ultramotion Manual" rend explicite qu’il s’agit d’un workflow CI déclenché manuellement.
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:   # ➜ Workflow déclenchable uniquement manuellement depuis GitHub. ➜ Aucun build automatique sur push/PR.
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+  test:   # ➜ Conteneur principal des étapes à exécuter dans ce workflow.
+    runs-on: ubuntu-latest   # ➜ Crée un job de test s’exécutant sur une machine Ubuntu.
+    steps:   # ➜ Conteneur des actions à exécuter dans le job "test".
+
+      - uses: actions/checkout@v4   # ➜ Clone automatiquement ton dépôt pour que le job puisse y accéder.
+
+      - name: Set up Python            # ➜ Étape lisible dans les logs : préparation de l'environnement Python
+        uses: actions/setup-python@v4  # ➜ Action officielle qui installe/configure Python pour le runner
         with:
-          python-version: '3.10'
-      - name: Install deps
+          python-version: '3.11'   # ➜ Prépare un environnement Python 3.11 identique à ton conteneur local.
+
+      - name: Install deps with uv     # ➜ Étape d’installation des dépendances Python via uv (rapide/déterministe)
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run a smoke test
+          pip install uv     # ➜ Installe l’outil uv dans l’env GitHub Actions avant le sync
+          uv sync --frozen   # ➜ Installe `uv`, synchronise les dépendances définies dans `pyproject.toml` et `uv.lock`, et garantit une installation reproductible.
+
+      - name: Run a smoke test         # ➜ Vérification minimale que l’environnement s’exécute correctement
         run: |
-          python -c "import sys; print('smoke')"
+          python -c "print('✅ CI environment ready')"   # ➜ Effectue un test minimal pour vérifier la stabilité de l’environnement CI et confirmer que Python + uv sont correctement configurés.

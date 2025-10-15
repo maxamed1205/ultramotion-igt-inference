@@ -1,65 +1,63 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Byte-compiled / optimized / DLL files — fichiers Python compilés automatiquement
+__pycache__/          # ➜ dossiers de cache Python
+*.py[cod]             # ➜ fichiers .pyc / .pyo / .pyd
+*$py.class            # ➜ fichiers générés par Jython ou PyInstaller
 
-# C extensions
-*.so
+# C extensions — fichiers binaires compilés
+*.so                  # ➜ bibliothèques partagées (Linux)
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
+# Distribution / packaging — dossiers créés par setuptools / build
+.Python               # ➜ environnement virtuel spécifique
+build/                # ➜ fichiers de compilation
+develop-eggs/         # ➜ paquets temporaires en dev
+dist/                 # ➜ dossiers de distribution (wheel/sdist)
+downloads/            # ➜ fichiers téléchargés
+eggs/                 # ➜ dépendances sous forme .egg
+.eggs/                # ➜ cache eggs
+lib/                  # ➜ bibliothèques locales
+lib64/                # ➜ bibliothèques 64-bit
+parts/                # ➜ fichiers générés par zc.buildout
+sdist/                # ➜ source distributions
+var/                  # ➜ données temporaires
+*.egg-info/           # ➜ métadonnées setuptools
+.installed.cfg        # ➜ fichiers de configuration générés
+*.egg                 # ➜ fichiers .egg installables
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# PyInstaller — artefacts de build d’exécutables
+*.manifest            # ➜ métadonnées générées
+*.spec                # ➜ scripts de build PyInstaller
 
-# Installer logs
+# Installer logs — journaux pip
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-test-results/
+# Unit test / coverage reports — caches et rapports de tests
+.tox/                 # ➜ environnement tox
+.nox/                 # ➜ environnement nox
+.coverage             # ➜ base de données de couverture
+.coverage.*           # ➜ variantes de couverture
+.cache                # ➜ cache générique
+nosetests.xml         # ➜ rapport nose
+coverage.xml          # ➜ rapport coverage
+*.cover               # ➜ fichiers de couverture partiels
+*.py,cover            # ➜ fichiers Python annotés
+.hypothesis/          # ➜ cache Hypothesis (tests property-based)
+test-results/         # ➜ résultats de tests temporaires
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints     # ➜ dossiers auto-sauvés
 
 # pyenv
-.python-version
+.python-version        # ➜ fichier de version pyenv (local)
 
-# mypy
+# mypy — cache du vérificateur de types
 .mypy_cache/
 
-# VS Code
+# VS Code — config locale IDE
 .vscode/
 
-# Docker
+# Docker — fichiers override non versionnés
 docker-compose.override.yml
 
-# Logs
+# Logs — journaux d’exécution et d’application
 logs/
