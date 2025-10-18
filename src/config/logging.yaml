@@ -1,0 +1,123 @@
+version: 1  # version du format de configuration du module logging (obligatoire pour le chargeur YAML)
+disable_existing_loggers: false  # conserve les loggers déjà existants (utile quand des libs externes ont leur propre logger)
+
+# Configuration du système de journalisation (logging) pour Ultramotion IGT Inference
+#
+# Politiques :
+# - LOG_MODE=dev|perf contrôle la verbosité de la console (dev=INFO, perf=WARNING). Définie via la variable d’environnement LOG_MODE.
+# - ASYNC_LOG=1|0 active ou désactive l’écriture asynchrone sur disque. Si ASYNC_LOG=1, le sous-système asynchrone devient l’unique écrivain pour les fichiers pipeline.log, kpi.log et error.log.
+# - Le script de démarrage (main.py) est responsable de la création du répertoire `logs/` avant le chargement de ce fichier.
+# - main.py ajuste automatiquement le niveau du handler console selon la variable LOG_MODE (LOG_MODE=dev → INFO, LOG_MODE=perf → WARNING). Ne pas modifier console.level ici : c’est main.py qui applique le réglage au lancement.
+# - Convention : utiliser des noms de logger sous la hiérarchie `igt.*` (par exemple igt.service, igt.monitor, igt.kpi).
+
+# ─────────────────────────────────────────────────────────────
+# Politique console :
+# LOG_MODE=dev  → console.level = INFO (ajusté au démarrage)
+# LOG_MODE=perf → console.level = WARNING (par défaut)
+# Le niveau console est toujours ajusté par main.py.
+# Ne pas modifier ce champ manuellement.
+# ─────────────────────────────────────────────────────────────
+
+formatters:  # définition des formats de sortie des messages
+  standard:
+    format: "[%(asctime)s] [%(levelname)s] %(processName)s/%(threadName)s | %(name)s | %(message)s"  # format standard : horodatage, niveau, nom du process/thread, nom du logger et message
+  # Formatteur KPI : émet un préfixe stable "kpi" et une charge utile clé=valeur facilement analysable
+  # Les messages KPI produits par le code doivent suivre la forme : "kpi ts=<date lisible> clé1=val1 clé2=val2 ..."
+  # Exemple : kpi ts=2025-10-18 21:02:14,321 fps_rx=23.4 latency_ms=42.1 drops=0
+  # Avantage : format lisible par un humain tout en restant facilement analysable par un script (ex: pandas)
+  kpi:
+    format: "kpi ts=%(asctime)s %(message)s"  # timestamp au format humain (YYYY-MM-DD HH:MM:SS,ms)
+    
+filters:  # définition des filtres de log
+  perf_filter:
+    '()': core.monitoring.filters.PerfFilter  # filtre de performance : désactive certains logs en mode perf
+  no_error:
+    '()': core.monitoring.filters.NoErrorFilter  # filtre excluant les messages d’erreur des handlers non dédiés (évite duplication)
+
+handlers:  # définition des canaux de sortie
+  console:
+    class: logging.StreamHandler  # affiche les logs dans la console
+    formatter: standard  # utilise le format standard
+    level: WARNING    # niveau par défaut WARNING (ajusté à l’exécution par main.py selon LOG_MODE)
+    filters: [perf_filter]  # applique le filtre de performance (réduction de verbosité)
+
+  file:
+    class: logging.handlers.RotatingFileHandler  # écrit dans un fichier avec rotation automatique
+    formatter: standard  # format standard
+    filename: logs/pipeline.log  # fichier principal des logs d’exécution
+    maxBytes: 10485760  # taille max 10 Mo avant rotation
+    backupCount: 5  # conserve 5 anciennes versions
+    level: DEBUG  # enregistre tous les niveaux jusqu’à DEBUG
+    filters: [perf_filter, no_error]  # applique filtres de performance et suppression des erreurs (évite doublons avec error.log)
+
+  file_kpi:
+    class: logging.handlers.RotatingFileHandler  # fichier dédié aux journaux KPI
+    formatter: kpi  # format compact spécial KPI
+    filename: logs/kpi.log  # emplacement du journal KPI
+    maxBytes: 5242880  # taille max 5 Mo
+    backupCount: 3  # conserve 3 anciennes versions
+    level: INFO  # enregistre uniquement INFO et supérieur
+    filters: [perf_filter]  # filtre de performance actif
+
+  file_error:
+    class: logging.handlers.RotatingFileHandler  # fichier dédié aux erreurs critiques
+    formatter: standard  # format standard
+    filename: logs/error.log  # emplacement du fichier d’erreurs
+    maxBytes: 7340032  # taille max 7 Mo
+    backupCount: 3  # conserve 3 anciennes versions
+    level: ERROR  # capture uniquement les erreurs et exceptions
+
+loggers:  # définition des loggers nommés par module
+  igt:  # logger principal
+    level: INFO  # niveau global
+    handlers: [console, file, file_error]  # envoie vers la console, le fichier principal et le fichier d’erreurs
+    propagate: no  # empêche la propagation vers le logger racine
+
+  igt.receiver:  # sous-module de réception (thread RX)
+    level: DEBUG  # niveau détaillé pour débogage
+    handlers: [console, file]  # console et fichier principal
+    propagate: no  # pas de propagation
+
+  igt.queues:  # module de gestion des files et buffers
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.gpu:  # module de traitement GPU
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.inference:  # module d’inférence IA
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.slicer:  # module d’envoi vers 3D Slicer
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.monitor:  # module de monitoring temps réel
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.kpi:  # logger spécialisé pour les métriques KPI
+    level: INFO
+    handlers: [file_kpi]  # écrit uniquement dans kpi.log
+    propagate: no
+
+  igt.service:  # composant de service principal (inférence, gateway)
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+  igt.types:  # typage et structures de données
+    level: DEBUG  # niveau détaillé (utile pour traçabilité des types)
+    handlers: [console, file]
+    propagate: no
+
+root:  # logger racine (par défaut)
+  level: WARNING  # niveau par défaut
+  handlers: [console, file_error]  # envoie uniquement les avertissements/erreurs vers console et fichier d’erreur

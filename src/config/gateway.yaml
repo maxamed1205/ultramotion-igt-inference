@@ -1,0 +1,8 @@
+# Configuration réseau pour IGTGateway
+plus_host: "127.0.0.1"
+plus_port: 18944
+slicer_port: 18945
+
+# Paramètres de performance
+target_fps: 25.0
+supervise_interval_s: 2.0

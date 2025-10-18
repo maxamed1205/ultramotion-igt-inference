@@ -1,3 +1,87 @@
+name: CI - tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11']
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run tests
+        run: pytest -q
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    name: CI - tests
+
+    on:
+      push:
+        branches: [ main ]
+      pull_request:
+        branches: [ main ]
+
+    jobs:
+      test:
+        runs-on: ${{ matrix.os }}
+        strategy:
+          matrix:
+            os: [ubuntu-latest, windows-latest]
+            python: ['3.11']
+
+        steps:
+          - uses: actions/checkout@v4
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: ${{ matrix.python }}
+
+          - name: Install dependencies
+            run: |
+              python -m pip install --upgrade pip
+              pip install pytest
+
+          - name: Run tests
+            run: pytest -q
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+      - name: Run linters
+        run: |
+          echo "No linters configured yet"
+      - name: Run tests
+        run: |
+          echo "No tests configured yet"
 name: CI - Ultramotion Manual   # Le nom "CI - Ultramotion Manual" rend explicite qu’il s’agit d’un workflow CI déclenché manuellement.
 
 on:

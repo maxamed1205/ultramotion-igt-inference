@@ -1,0 +1,25 @@
+# settings.yaml — Configuration générale du pipeline IA temps réel
+
+igt:
+  host: "0.0.0.0"
+  port: 18944  # port par défaut IGTLink
+
+pipeline:
+  target_fps: 25
+  queue_rt_max_latency_ms: 500
+  gpu_streams:
+    transfer: "stream_transfer"
+    infer: "stream_infer"
+
+model:
+  dfine_path: "models/dfine.pth"
+  mobilesam_path: "models/mobilesam.pth"
+  use_fp16: true
+
+monitoring:
+  log_interval_sec: 1.0
+  enable_gpu_metrics: true
+
+# Options additionnelles (exemple):
+# logging:
+#   config_path: "src/config/logging.yaml"

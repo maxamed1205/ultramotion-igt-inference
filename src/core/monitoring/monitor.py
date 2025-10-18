@@ -1,0 +1,416 @@
+"""Monitoring thread et helpers (Thread M)
+
+Description
+-----------
+Module chargé de surveiller la pipeline en temps réel :
+- calcul et publication des métriques (fps_in, fps_out, latence E2E),
+- relevé de l'utilisation GPU (si disponible),
+- statistiques sur la taille/consommation des queues,
+- ajustement de `Queue_RT_dyn` via `adaptive_queue_resize`.
+
+Responsabilités
+----------------
+- démarrer un thread périodique qui collecte métriques,
+- exposer une API pour journaliser des métriques ponctuelles,
+- appliquer des règles d'ajustement sur les queues.
+
+Dépendances attendues
+---------------------
+- accès aux queues (module `core.queues.buffers`),
+- utilitaire de logging (configuration via `src/config/logging.yaml`),
+- possibilité d'utiliser `pynvml` ou `nvidia-smi` pour récupération GPU (optionnel).
+
+Fonctions principales
+---------------------
+- start_monitor_thread(config=None)
+- log_pipeline_metrics(fps_in, fps_out, latency_ms, gpu_util, extras=None)
+- adjust_rt_queue_size(current_size, metrics) -> int
+
+Note
+----
+Les fonctions ci-dessous ne contiennent pas d'implémentation réelle —
+elles servent de contrat pour l'implémentation ultérieure.
+"""
+
+from typing import Dict, Optional   # pour indiquer les types de retour (dictionnaire, optionnel)
+import time                         # utilisé pour mesurer le temps et horodater les métriques
+import logging                      # système de journalisation Python
+import json                         # pour exporter les métriques en JSON
+from pathlib import Path             # pour manipuler les chemins de fichiers (logs, snapshots)
+
+LOG = logging.getLogger("igt.monitor")  # création d’un logger nommé "igt.monitor" (thread de monitoring)
+
+from core.queues.buffers import collect_queue_metrics  # fonction utilitaire pour extraire les métriques des files (queues)
+from collections import deque                          # structure de données (file circulaire) utilisée pour stocker un historique des métriques
+from core.monitoring.kpi import safe_log_kpi, is_kpi_enabled  # fonctions utilitaires pour écrire les KPI en toute sécurité
+
+# Petite mémoire tampon (deque) conservant un historique des métriques récentes (ex: pour calculer une moyenne glissante)
+_METRICS_HISTORY = deque(maxlen=30)
+# Nombre minimum de points requis avant de calculer une moyenne lissée (évite de calculer avec trop peu d’échantillons)
+_SMOOTH_MIN_POINTS = 10
+
+
+def aggregate_metrics(fps_in: float, fps_out: float, latency_ms: float, gpu_util: float):
+    """Ajoute un nouvel échantillon de métriques et retourne la moyenne lissée si suffisamment de données ont été accumulées."""
+    _METRICS_HISTORY.append({  # ajoute un dictionnaire contenant les mesures actuelles dans l’historique
+        "ts": time.time(),          # horodatage en secondes
+        "fps_in": fps_in,           # fréquence d’images en entrée
+        "fps_out": fps_out,         # fréquence d’images en sortie
+        "latency_ms": latency_ms,   # latence moyenne en millisecondes
+        "gpu_util": gpu_util,       # taux d’utilisation GPU en pourcentage
+    })
+    # Ne retourne une moyenne lissée que si on a un nombre suffisant d’échantillons
+    if len(_METRICS_HISTORY) < _SMOOTH_MIN_POINTS:
+        return None  # pas encore assez de points pour lisser
+    avg = {  # calcul d’une moyenne simple pour chaque clé sur l’ensemble de l’historique
+        k: sum(m[k] for m in _METRICS_HISTORY) / len(_METRICS_HISTORY)
+        for k in ("fps_in", "fps_out", "latency_ms", "gpu_util")
+    }
+    LOG.debug("Smoothed KPIs: %s", avg)  # log interne pour indiquer les valeurs lissées calculées
+    return avg  # renvoie le dictionnaire contenant les moyennes lissées
+
+
+def get_aggregated_metrics() -> Optional[Dict[str, float]]:
+    """Retourne la moyenne lissée actuelle calculée à partir de l’historique en mémoire.
+
+    Ne rajoute pas de nouvel échantillon. Retourne None si le nombre de points est insuffisant.
+    """
+    if len(_METRICS_HISTORY) < _SMOOTH_MIN_POINTS:  # si on n’a pas assez de données accumulées
+        return None
+    avg = {  # même logique que aggregate_metrics, mais sans ajout de nouveau point
+        k: sum(m[k] for m in _METRICS_HISTORY) / len(_METRICS_HISTORY)
+        for k in ("fps_in", "fps_out", "latency_ms", "gpu_util")
+    }
+    return avg  # renvoie les valeurs moyennes actuelles (fps_in, fps_out, latence, GPU)
+
+
+def get_gpu_utilization() -> float:
+    """Retourne le pourcentage d’utilisation du GPU si disponible, sinon 0.0."""
+    try:
+        import pynvml  # bibliothèque NVIDIA pour accéder aux informations GPU
+
+        pynvml.nvmlInit()  # initialise la bibliothèque NVML
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # récupère le premier GPU (index 0)
+        util = float(pynvml.nvmlDeviceGetUtilizationRates(handle).gpu)  # lit le taux d’utilisation GPU
+        try:
+            pynvml.nvmlShutdown()  # tente de fermer proprement la session NVML
+        except Exception:
+            pass  # ignore les erreurs à la fermeture
+        return util  # retourne le pourcentage d’utilisation GPU
+    except Exception:
+        return 0.0  # en cas d’erreur (absence de GPU ou NVML), retourne 0.0
+
+
+def collect_gateway_metrics(gw) -> Dict[str, float]:
+    """Collecte les métriques dynamiques à partir d’un objet de type IGTGateway.
+
+    Retourne un dictionnaire prêt à être intégré dans une ligne de KPI.
+    Si `gw` est None (aucun gateway actif), retourne un dictionnaire vide.
+    """
+    if gw is None:  # si aucun objet gateway n’est fourni
+        return {}  # retourne un dictionnaire vide
+    try:
+        snap = gw.stats.snapshot()  # tente de récupérer un instantané des statistiques depuis le gateway
+    except Exception:
+        snap = {}  # si l’appel échoue, on utilise un dictionnaire vide
+
+    # inclut des champs supplémentaires utiles si présents dans le snapshot
+    return {
+        "fps_rx": float(snap.get("avg_fps_rx", 0.0)),  # fréquence moyenne des frames reçues (RX)
+        "fps_tx": float(snap.get("avg_fps_tx", 0.0)),  # fréquence moyenne des frames envoyées (TX)
+        "bytes_rx_MB": float(snap.get("bytes_rx", 0)) / 1e6,  # octets reçus convertis en mégaoctets
+        "bytes_tx_MB": float(snap.get("bytes_tx", 0)) / 1e6,  # octets envoyés convertis en mégaoctets
+        # le gateway peut exposer une latence moyenne; sinon, on récupère la dernière mesurée
+        "latency_ms": float(snap.get("avg_latency_ms", getattr(gw, "last_latency_ms", 0.0) or 0.0)),
+        "avg_latency_ms": float(snap.get("avg_latency_ms", getattr(gw, "last_latency_ms", 0.0) or 0.0)),
+        # compteurs de pertes (drops) si disponibles
+        "drops_rx_total": int(snap.get("drops_rx_total", snap.get("drops_rx", 0) or 0)),
+        "drops_tx_total": int(snap.get("drops_tx_total", snap.get("drops_tx", 0) or 0)),
+        # fréquence cible configurée dans le gateway
+        "fps_target": float(getattr(getattr(gw, "config", None), "target_fps", 0.0) or 0.0),
+    }
+
+
+def log_kpi_tick(fps_in: float, fps_out: float, latency_ms: float, gpu_util: float = 0.0) -> None:
+    """Écrit une ligne de KPI analysable dans le logger dédié aux KPI."""
+    q_metrics = collect_queue_metrics()  # collecte les statistiques courantes sur les queues
+    # compose un message compact au format clé=valeur
+    try:
+        from core.monitoring.kpi import format_kpi, safe_log_kpi  # import local des utilitaires KPI
+
+        kmsg = format_kpi({  # création d’un message structuré avec les mesures principales
+            "ts": time.time(),                                  # horodatage en secondes (époque)
+            "fps_in": f"{fps_in:.2f}",                          # fréquence d’entrée
+            "fps_out": f"{fps_out:.2f}",                        # fréquence de sortie
+            "latency_ms": f"{latency_ms:.1f}",                  # latence en millisecondes
+            "gpu_util": f"{gpu_util:.1f}",                      # utilisation GPU
+            "q_rt": q_metrics['Queue_RT_dyn']['size'],          # taille de la queue temps réel
+            "q_gpu": q_metrics['Queue_GPU']['size'],            # taille de la queue GPU
+            "drops_rt": q_metrics['Queue_RT_dyn']['drops'],     # nombre de pertes RT
+            "drops_gpu": q_metrics['Queue_GPU']['drops'],       # nombre de pertes GPU
+        })
+        if is_kpi_enabled():  # si la journalisation des KPI est activée
+            safe_log_kpi(kmsg)  # écrit la ligne dans logs/kpi.log (via le logger igt.kpi)
+    except Exception:
+        # en cas d’erreur du module KPI, tentative de repli pour émettre un message structuré
+        try:
+            from core.monitoring.kpi import format_kpi, safe_log_kpi
+            kmsg = format_kpi({
+                "ts": time.time(),
+                "fps_in": f"{fps_in:.2f}",
+                "fps_out": f"{fps_out:.2f}",
+                "latency_ms": f"{latency_ms:.1f}",
+                "gpu_util": f"{gpu_util:.1f}",
+                "q_rt": q_metrics['Queue_RT_dyn']['size'],
+                "q_gpu": q_metrics['Queue_GPU']['size'],
+                "drops_rt": q_metrics['Queue_RT_dyn']['drops'],
+                "drops_gpu": q_metrics['Queue_GPU']['drops'],
+            })
+            if is_kpi_enabled():
+                safe_log_kpi(kmsg)
+        except Exception:
+            LOG.debug("KPI fallback emission failed; skipping")  # journalise un message si l’émission échoue totalement
+
+
+def export_kpi_snapshot(filepath: str = "logs/kpi_snapshot.json") -> None:
+    """Sauvegarde le dernier instantané de métriques agrégées dans un fichier JSON.
+
+    Crée les répertoires parents si nécessaire.
+    """
+    try:
+        avg = aggregate_metrics(0.0, 0.0, 0.0, 0.0)  # tente d’agréger des métriques par défaut (peut retourner None)
+        # si aggregate_metrics retourne None (aucune donnée encore disponible), on crée un snapshot vide
+        if avg is None:
+            avg = {"fps_in": 0.0, "fps_out": 0.0, "latency_ms": 0.0, "gpu_util": 0.0}
+        p = Path(filepath)  # convertit le chemin en objet Path
+        p.parent.mkdir(parents=True, exist_ok=True)  # crée le dossier logs/ s’il n’existe pas
+        # écrit un fichier JSON horodaté et met à jour la version la plus récente
+        ts = time.strftime("%Y%m%d-%H%M%S", time.gmtime())  # format d’horodatage lisible (UTC)
+        stamped = p.parent / f"kpi_snapshot_{ts}.json"       # nom de fichier unique par date
+        stamped.write_text(json.dumps(avg, indent=2))         # écrit le fichier horodaté
+        # met à jour le fichier principal (dernier snapshot courant)
+        p.write_text(json.dumps(avg, indent=2))
+        # effectue la rotation et compression des anciens fichiers de snapshot
+        try:
+            rotate_snapshots(p.parent, keep=10)  # conserve les 10 plus récents
+        except Exception:
+            pass  # ignore les erreurs de rotation
+    except Exception:
+        LOG.exception("Failed to export KPI snapshot")  # journalise une erreur si l’export échoue
+
+
+def rotate_snapshots(base_dir: str = "logs", keep: int = 10):
+    """Effectue la rotation des fichiers de snapshots KPI dans `base_dir`, en conservant les `keep` plus récents.
+
+    Les fichiers plus anciens que ce seuil sont compressés au format `.json.gz`
+    afin de préserver l’historique tout en économisant de l’espace disque.
+    Le fichier principal `kpi_snapshot.json` est toujours réécrit avec la dernière version,
+    sans lien symbolique, pour garantir la compatibilité entre plateformes.
+    """
+    base = Path(base_dir)  # crée un objet Path représentant le dossier de base
+    if not base.exists():  # si le dossier n’existe pas, on ne fait rien
+        return
+    # recherche tous les fichiers "kpi_snapshot_*.json" triés du plus récent au plus ancien
+    files = sorted(base.glob("kpi_snapshot_*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+    # garde les `keep` fichiers les plus récents, compresse les autres
+    for old in files[keep:]:
+        try:
+            gz = old.with_suffix(old.suffix + ".gz")  # crée le nom du fichier compressé
+            # si la version compressée existe déjà, on supprime simplement l’ancienne
+            if gz.exists():
+                try:
+                    old.unlink()  # supprime l’ancien fichier non compressé
+                except Exception:
+                    pass
+                continue
+            import gzip  # module standard Python pour la compression Gzip
+
+            # ouverture du fichier source en lecture binaire et création du fichier compressé
+            with old.open("rb") as fh_in, gzip.open(str(gz), "wb") as fh_out:
+                fh_out.writelines(fh_in)  # écrit le contenu compressé
+            # si la compression réussit, on supprime le fichier original
+            try:
+                old.unlink()
+            except Exception:
+                pass
+        except Exception:
+            # en cas d’échec de compression, on tente de supprimer le fichier pour limiter la taille disque
+            try:
+                old.unlink()
+            except Exception:
+                pass
+
+
+def start_monitor_thread(config: Optional[Dict] = None) -> None:
+    """Démarre un thread périodique qui collecte et journalise les métriques de la pipeline.
+
+    Args:
+        config: dictionnaire optionnel contenant les paramètres (intervalle, files à surveiller, niveau de log, etc.)
+    """
+    interval = (config or {}).get("interval_sec", 1.0)  # intervalle de collecte par défaut (1 seconde)
+    LOG.info("Monitor thread started (interval=%.2fs)", interval)  # message de démarrage
+
+    def _loop():  # fonction interne exécutée dans un thread indépendant
+        # boucle légère : émet des valeurs fictives par défaut sauf si remplacée par des hooks réels
+        while True:
+            try:
+                # Ces valeurs sont simulées ici ; elles seront remplacées plus tard par de vrais compteurs
+                fps_in, fps_out, latency_ms = 25.0, 25.0, 40.0
+                # essaie d’obtenir l’utilisation réelle du GPU (si pynvml est disponible)
+                gpu_util = get_gpu_utilization()
+                # collecte les métriques du gateway s’il a été passé dans la configuration
+                gw = (config or {}).get("gateway") if isinstance(config, dict) else None
+                gw_metrics = collect_gateway_metrics(gw) if gw is not None else {}
+
+                # enregistre cet échantillon dans l’historique mémoire pour lisser les valeurs
+                agg = aggregate_metrics(fps_in, fps_out, latency_ms, gpu_util)
+
+                # compose un message de monitoring contenant les valeurs instantanées et les métriques de queue
+                q_metrics = collect_queue_metrics()
+                msg = (
+                    f"[monitor] ts={time.time():.3f} "
+                    f"fps_in={fps_in:.2f} fps_out={fps_out:.2f} "
+                    f"latency_ms={latency_ms:.1f} gpu_util={gpu_util:.1f} "
+                    f"q_rt={q_metrics.get('Queue_RT_dyn', {}).get('size', 0)} "
+                    f"drops_rt={q_metrics.get('Queue_RT_dyn', {}).get('drops', 0)} "
+                )
+                # ajoute les champs relatifs au gateway si présents
+                if gw_metrics:
+                    msg += (
+                        f" fps_rx={gw_metrics.get('fps_rx', 0.0):.1f} "
+                        f"fps_tx={gw_metrics.get('fps_tx', 0.0):.1f} "
+                        f"MB_rx={gw_metrics.get('bytes_rx_MB', 0.0):.3f} "
+                        f"MB_tx={gw_metrics.get('bytes_tx_MB', 0.0):.3f} "
+                        f"latency_gw={gw_metrics.get('latency_ms', 0.0):.1f} "
+                        f"fps_target={gw_metrics.get('fps_target', 0.0):.1f}"
+                    )
+
+                # si une moyenne lissée est disponible, on l’utilise pour remplacer les valeurs brutes
+                if agg is not None:
+                    try:
+                        msg = (
+                            f"[monitor] ts={time.time():.3f} "
+                            f"fps_in={agg['fps_in']:.2f} fps_out={agg['fps_out']:.2f} "
+                            f"latency_ms={agg['latency_ms']:.1f} gpu_util={agg['gpu_util']:.1f} "
+                        ) + (msg.split('q_rt=')[-1] if 'q_rt=' in msg else '')
+                    except Exception:
+                        LOG.debug("Échec du formatage de la moyenne lissée ; utilisation des valeurs instantanées")
+
+                # si le système KPI est activé, on logge les métriques sous forme structurée
+                if is_kpi_enabled():
+                    try:
+                        from core.monitoring.kpi import format_kpi
+
+                        kdata = {  # dictionnaire complet contenant les données KPI
+                            "ts": time.time(),
+                            "fps_in": fps_in,
+                            "fps_out": fps_out,
+                            "latency_ms": latency_ms,
+                            "gpu_util": gpu_util,
+                            # informations sur les files
+                            "q_rt": q_metrics.get('Queue_RT_dyn', {}).get('size', 0),
+                            "q_gpu": q_metrics.get('Queue_GPU', {}).get('size', 0),
+                            "drops_rt": q_metrics.get('Queue_RT_dyn', {}).get('drops', 0),
+                            "drops_gpu": q_metrics.get('Queue_GPU', {}).get('drops', 0),
+                        }
+                        # ajout des métriques du gateway si disponibles
+                        if gw_metrics:
+                            kdata.update({
+                                "fps_rx": gw_metrics.get('fps_rx', 0.0),
+                                "fps_tx": gw_metrics.get('fps_tx', 0.0),
+                                "MB_rx": gw_metrics.get('bytes_rx_MB', 0.0),
+                                "MB_tx": gw_metrics.get('bytes_tx_MB', 0.0),
+                                "avg_latency_ms": gw_metrics.get('avg_latency_ms', gw_metrics.get('latency_ms', 0.0)),
+                                "drops_rx_total": gw_metrics.get('drops_rx_total', 0),
+                                "drops_tx_total": gw_metrics.get('drops_tx_total', 0),
+                            })
+
+                        kmsg = format_kpi(kdata)  # formate les données KPI en texte clé=valeur
+                        safe_log_kpi(kmsg)  # envoie le message vers logs/kpi.log via le logger igt.kpi
+                    except Exception:
+                        LOG.exception("safe_log_kpi a échoué (monitor)")  # journalise une erreur si l’émission KPI échoue
+                else:
+                    LOG.info("KPI: %s", msg)  # sinon logge le message textuel dans le logger général
+
+                # export périodique d’un snapshot JSON (tous les N ticks, configurable)
+                try:
+                    tick = getattr(start_monitor_thread, "_tick_counter", 0) + 1  # incrémente le compteur interne
+                    setattr(start_monitor_thread, "_tick_counter", tick)
+                    export_every = (config or {}).get("snapshot_every", 10) if isinstance(config, dict) else 10
+                    if tick % export_every == 0:  # tous les N intervalles, on exporte un snapshot
+                        export_kpi_snapshot("logs/kpi_snapshot.json")
+                except Exception:
+                    LOG.debug("export_kpi_snapshot ignoré (erreur mineure)")
+                time.sleep(interval)  # attend la durée spécifiée avant la prochaine itération
+            except Exception:
+                LOG.exception("Exception dans la boucle du thread de monitoring")  # capture toute erreur pour éviter l’arrêt du thread
+
+    import threading
+    threading.Thread(target=_loop, name="MonitorThread", daemon=True).start()  # démarre le thread en mode démon
+    # note : implémentation complète (join, stop event, etc.) non encore présente
+    return
+
+
+def log_pipeline_metrics(
+    fps_in: float,
+    fps_out: float,
+    latency_ms: float,
+    gpu_util: float,
+    extras: Optional[Dict] = None
+) -> None:
+    """Journalise les métriques principales de la pipeline.
+
+    Args:
+        fps_in: nombre d'images par seconde en entrée (avant traitement)
+        fps_out: nombre d'images par seconde en sortie (après traitement)
+        latency_ms: latence totale de la pipeline en millisecondes
+        gpu_util: taux d'utilisation du GPU en pourcentage
+        extras: dictionnaire optionnel contenant des métriques additionnelles personnalisées
+    """
+    # Écrit un message d'information standard dans le logger principal
+    LOG.info(
+        "Pipeline metrics fps_in=%s fps_out=%s latency_ms=%s gpu_util=%s",
+        fps_in, fps_out, latency_ms, gpu_util
+    )
+    # Si des métriques supplémentaires sont présentes et que le niveau DEBUG est activé, on les loggue
+    if extras and LOG.isEnabledFor(logging.DEBUG):
+        LOG.debug("Extra metrics: %s", extras)
+    return  # rien à renvoyer (simple enregistrement de logs)
+
+
+def adjust_rt_queue_size(current_size: int, metrics: Dict) -> int:
+    """Calcule et retourne la nouvelle taille souhaitée pour la file (queue) temps réel dynamique.
+
+    Args:
+        current_size: taille actuelle de la queue
+        metrics: dictionnaire de métriques récentes (ex : tailles des queues, fps, latence)
+
+    Returns:
+        La nouvelle taille (int), ajustée selon les métriques. Ici, retourne la taille actuelle (fonction factice).
+    """
+    # Fonction encore non implémentée : pour l’instant, renvoie simplement la taille actuelle.
+    LOG.debug("adjust_rt_queue_size appelé avec current_size=%s", current_size)
+    return current_size  # aucune modification de la taille n’est encore appliquée
+
+
+def get_pipeline_metrics() -> Dict:
+    """Retourne un instantané des métriques courantes de la pipeline, incluant les KPI des files et un horodatage.
+
+    Structure du retour :
+        {
+            "queues": { ... },   # dictionnaire des métriques par queue (taille, drops, etc.)
+            "timestamp": <float> # horodatage UNIX (secondes)
+        }
+    """
+    # collect_queue_metrics() retourne l’état actuel de chaque file : taille, nombre de drops, etc.
+    return {"queues": collect_queue_metrics(), "timestamp": time.time()}
+
+    """Return a snapshot of pipeline metrics including queue KPIs and timestamp.
+
+    Structure:
+        {
+            "queues": { ... },
+            "timestamp": <float>
+        }
+    """
+    return {"queues": collect_queue_metrics(), "timestamp": time.time()}
