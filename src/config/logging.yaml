@@ -118,6 +118,12 @@ loggers:  # définition des loggers nommés par module
     handlers: [console, file]
     propagate: no
 
+  igt.fsm:  # module de logique d’état et de visibilité
+    level: DEBUG
+    handlers: [console, file]
+    propagate: no
+
+
 root:  # logger racine (par défaut)
   level: WARNING  # niveau par défaut
   handlers: [console, file_error]  # envoie uniquement les avertissements/erreurs vers console et fichier d’erreur

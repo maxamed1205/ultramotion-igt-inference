@@ -1,150 +1,175 @@
 """
-💡 Note 19/10/2025 à 16h30 — module actif mais non implémenté (Process B)
-=====================================================
-Ce module fait partie intégrante de la pipeline Ultramotion actuelle.
+CPU → GPU Transfer Utility (Process B)
+======================================
 
-🔹 Rôle :
----------
-`cpu_to_gpu.py` correspond au **Process B** dans la chaîne A→B→C→D :
+💡 Mise à jour 20/10/2025 — version “single copy_async”
+-------------------------------------------------------
+
+Ce module correspond au **Process B** dans la pipeline Ultramotion (A→B→C→D) :
 
     A. Acquisition         → service/plus_client.py (PlusServer → RawFrame)
     👉 B. Préprocessing     → core/preprocessing/cpu_to_gpu.py (RawFrame → GpuFrame)
-    C. Inférence           → core/inference/segmentation_engine.py (GpuFrame → ResultPacket)
+    C. Inférence           → core/inference/detection_and_engine.py (GpuFrame → ResultPacket)
     D. Sortie vers Slicer  → service/slicer_server.py (ResultPacket → 3D Slicer)
 
-Il assure la préparation et le transfert des images CPU (numpy arrays)
-vers le GPU sous forme de tensors Torch, en vue de l’inférence IA.
-
-🔧 État actuel :
-----------------
-Ce fichier contient uniquement des squelettes et docstrings.
-Les fonctions sont déjà intégrées dans la structure du pipeline :
-elles seront appelées automatiquement par le Process B pour consommer
-`Queue_RT_dyn` et alimenter `Queue_GPU`.
-
-Aucune refonte nécessaire — il suffit plus tard d’implémenter :
-    - la conversion numpy → torch.Tensor
-    - la normalisation / mise en forme (channels_first, dtype)
-    - les transferts asynchrones CUDA (copy_async + pinned memory)
-
-⚙️ En résumé :
+Rôle du module
 --------------
-✅ Module **actif et nécessaire**
-❌ Implémentation encore minimale (placeholders)
-📍 Étape “B” du pipeline A→B→C→D (préparation CPU → GPU)
-"""
+Assurer **un seul transfert CPU→GPU par frame**, de manière **asynchrone** et **non bloquante**,
+avant l’inférence D-FINE + MobileSAM. Ce module effectue :
 
+1. la conversion numpy → torch.Tensor,  
+2. la normalisation et mise en forme (channels_first, dtype),  
+3. l’allocation en mémoire “pinned” (fixée CPU pour transfert rapide),  
+4. la copie asynchrone vers le GPU (copy_async sur un stream dédié).
 
-"""CPU -> GPU helpers (Process B)
+Une fois la frame convertie en `GpuFrame`, elle est déposée dans `Queue_GPU`
+et utilisée directement par `detection_and_engine.py` sans nouvelle copie.
 
-Description
+Avantages :
 -----------
-Ce module contient les utilitaires nécessaires pour préparer des frames
-CPU (numpy arrays, buffers) et les transférer sur GPU sous forme de
-torch.Tensor. Il met l'accent sur :
- - normalisation / mise en forme (channels, dtype),
- - utilisation de mémoire 'pinned' quand disponible,
- - transferts asynchrones via CUDA streams pour chevaucher copie/compute.
+- ✅ Une seule copie CPU→GPU pour tout le pipeline.
+- ✅ Transfert asynchrone (copy + compute se chevauchent).
+- ✅ Compatible CUDA streams pour D-FINE / MobileSAM.
+- ✅ Facile à synchroniser en aval via `stream.wait_stream()`.
 
-Responsabilités
-----------------
-- convertir une frame CPU en tensor prêt pour inférence
-- allouer / préparer la mémoire (pinned) si besoin
-- effectuer le transfert asynchrone et retourner l'objet GPU
+Flux schématique :
+------------------
+    RawFrame (numpy)
+         │
+         ▼
+    prepare_frame_for_gpu()
+         │
+     copy_async CUDA stream
+         │
+         ▼
+    GpuFrame(tensor, meta, stream)
+         │
+         ▼
+    Queue_GPU  → detection_and_engine.py
 
-Dépendances (attendues)
+Fonctions principales :
 -----------------------
-- torch (optionnel à l'exécution) — ce module ne doit pas importer torch
-  si l'appelant veut mocker ou tester sans GPU; importer localement dans
-  les fonctions.
+- `prepare_frame_for_gpu(frame, device)` : prépare et transfert CPU→GPU (asynchrone)
+- `transfer_to_gpu_async(tensor, stream)` : copie GPU dédiée (optionnelle)
+- `process_one_frame()` : consomme une frame RT et alimente Queue_GPU
 
-Fonctions principales
----------------------
-- prepare_frame_for_gpu(frame) -> torch.Tensor
-- transfer_to_gpu_async(tensor, stream_transfer) -> torch.Tensor
-
-Note
-----
-Ce fichier ne contient que des signatures et des docstrings —
-implémentation réelle à fournir ultérieurement.
+Ce fichier définit les squelettes des fonctions, à implémenter dans la phase GPU
+du Process B. Aucun calcul réel n’est effectué ici.
 """
 
 from typing import Any, Optional
-
-from core.types import RawFrame, GpuFrame
-from core.queues.buffers import get_queue_rt_dyn, get_queue_gpu, try_dequeue, enqueue_nowait_gpu
 import logging
 import time
 
+from core.types import RawFrame, GpuFrame
+from core.queues.buffers import (
+    get_queue_rt_dyn,
+    get_queue_gpu,
+    try_dequeue,
+    enqueue_nowait_gpu,
+)
+
+
 LOG = logging.getLogger("igt.gpu")
-from logging import getLogger as _getlogger
-LOG_KPI = _getlogger("igt.kpi")
+LOG_KPI = logging.getLogger("igt.kpi")
 
 
-def prepare_frame_for_gpu(frame: RawFrame, config: Optional[dict] = None) -> GpuFrame:
-    """Prépare une frame CPU pour l'envoi sur GPU.
+# ======================================================================
+# 1. Préparation et transfert CPU → GPU
+# ======================================================================
+
+def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optional[dict] = None) -> GpuFrame:
+    """
+    Prépare une frame CPU (numpy) pour le GPU, via un **seul transfert asynchrone**.
+
+    Étapes attendues (à implémenter) :
+      1. Validation de la forme et du dtype (float32, [C,H,W]).
+      2. Normalisation des intensités (ex : /255.0 ou mean/std).
+      3. Allocation mémoire CPU en pinned memory.
+      4. Transfert asynchrone vers GPU via `torch.cuda.Stream`.
 
     Args:
-        frame: entrée (ex: numpy.ndarray) représentant l'image/volume.
-        config: options (dtype cible, normalisation, channels_first, ...)
+        frame: RawFrame contenant l’image CPU (numpy array ou buffer équivalent).
+        device: cible du transfert ('cuda', 'cuda:0', etc.)
+        config: dictionnaire optionnel (normalisation, dtype, scale, etc.)
 
     Returns:
-        un objet tensor (ex: torch.Tensor) prêt à être transféré sur GPU.
+        GpuFrame : objet contenant le tensor GPU, les métadonnées et le stream CUDA associé.
 
-    Comportement attendu (non implémenté ici):
-      - valider la forme et dtype,
-      - normaliser les valeurs (ex: [0,1] ou mean/std),
-      - convertir en channels_first si nécessaire,
-      - optionnellement allouer la mémoire CPU en pinned memory pour copy accélérée.
+    Notes :
+        - L’objectif est d’assurer que **toute la pipeline C (inférence)** travaille
+          sur ce tensor unique sans reconversion CPU→GPU.
+        - Le transfert asynchrone permet le chevauchement avec le calcul du frame précédent.
     """
-    # Minimal placeholder: wrap the RawFrame into a GpuFrame-like structure
-    # For now, we reuse the RawFrame object as a stand-in for GpuFrame in tests.
-    # Real implementation should convert numpy -> torch tensor and return GpuFrame.
-    return frame  # type: ignore[return-value]
+    raise NotImplementedError
 
 
-def transfer_to_gpu_async(tensor: GpuFrame, stream_transfer: Optional[Any] = None) -> GpuFrame:
-    """Transfère un tensor CPU -> GPU de manière asynchrone.
+def transfer_to_gpu_async(tensor: Any, stream_transfer: Optional[Any] = None, device: str = "cuda") -> Any:
+    """
+    Effectue un transfert asynchrone CPU→GPU sur un stream CUDA fourni.
 
     Args:
-        tensor: tensor CPU (ex: torch.Tensor sur device='cpu')
-        stream_transfer: objet stream (ex: torch.cuda.Stream) pour le transfert
+        tensor: tensor CPU (torch.Tensor sur device='cpu').
+        stream_transfer: stream CUDA dédié au transfert.
+        device: cible GPU ('cuda', 'cuda:0', etc.).
 
     Returns:
-        tensor sur le device GPU (ex: torch.Tensor sur device='cuda:0')
+        tensor GPU (torch.Tensor sur le device cible).
 
-    Comportement attendu (non implémenté ici):
-      - utiliser un stream fourni pour effectuer copy_async,
-      - retourner une référence au tensor GPU (ou handler de transfert).
+    Comportement attendu :
+        - Utiliser `with torch.cuda.stream(stream_transfer):`
+          puis `tensor.to(device, non_blocking=True)`.
+        - Retourner le tensor GPU pour réutilisation immédiate.
     """
-    # No-op placeholder for tests: assume tensor is already on GPU or wrapped.
-    return tensor
+    raise NotImplementedError
 
+
+# ======================================================================
+# 2. Intégration dans la boucle pipeline A→B
+# ======================================================================
 
 def process_one_frame(config: Optional[dict] = None) -> None:
-    """Consume one RawFrame from RT queue, prepare and enqueue to GPU queue.
+    """
+    Consomme une RawFrame depuis la queue temps réel, effectue la préparation GPU,
+    et dépose le résultat dans Queue_GPU (étape B du pipeline).
 
-    This is a lightweight helper used by the pipeline to bridge A->B.
-    It uses non-blocking try_dequeue / enqueue_nowait_gpu helpers from buffers.
+    Étapes :
+        1. Défile une frame de Queue_RT_dyn (non bloquant).
+        2. Appelle prepare_frame_for_gpu().
+        3. Envoie le GpuFrame vers Queue_GPU (non bloquant).
+
+    Notes :
+        - Les métriques de saturation Queue_GPU sont publiées via KPI logs.
+        - Les transferts asynchrones permettent le chevauchement CPU/GPU.
     """
     q_rt = get_queue_rt_dyn()
     raw = try_dequeue(q_rt)
     if raw is None:
         return
-    if LOG.isEnabledFor(logging.DEBUG):
-        LOG.debug("Got raw frame %s from RT queue", getattr(raw, "meta", None) and getattr(raw.meta, "frame_id", None))
 
+    if LOG.isEnabledFor(logging.DEBUG):
+        fid = getattr(getattr(raw, "meta", None), "frame_id", None)
+        LOG.debug("Dequeued RawFrame %s from RT queue", fid)
+
+    # Préparation GPU (asynchrone)
     gpu_frame = prepare_frame_for_gpu(raw)
+
+    # Envoi vers la queue GPU
     q_gpu = get_queue_gpu()
     ok = enqueue_nowait_gpu(q_gpu, gpu_frame)
-    if not ok and LOG.isEnabledFor(logging.WARNING):
-        LOG.warning("GPU queue full, frame %s dropped or deferred", getattr(raw, "meta", None) and getattr(raw.meta, "frame_id", None))
-        try:
-                from core.monitoring.kpi import safe_log_kpi, format_kpi
 
-                kmsg = format_kpi({"ts": time.time(), "event": "gpu_saturation", "frame": getattr(raw, "meta", None) and getattr(raw.meta, "frame_id", None), "q_gpu": q_gpu.qsize()})
-                safe_log_kpi(kmsg)
+    if not ok:
+        LOG.warning("GPU queue full, frame %s dropped", getattr(raw, "meta", None) and getattr(raw.meta, "frame_id", None))
+        try:
+            from core.monitoring.kpi import safe_log_kpi, format_kpi
+            msg = format_kpi({
+                "ts": time.time(),
+                "event": "gpu_saturation",
+                "frame": getattr(raw, "meta", None) and getattr(raw.meta, "frame_id", None),
+                "q_gpu": q_gpu.qsize(),
+            })
+            safe_log_kpi(msg)
         except Exception:
             LOG.debug("Failed to emit KPI gpu_saturation")
-    # If enqueue failed, enqueue_nowait_gpu already attempted drop-oldest once.
+
     return
