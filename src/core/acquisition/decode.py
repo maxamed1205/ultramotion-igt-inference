@@ -1,3 +1,40 @@
+"""
+⚠️ [Deprecated / Legacy Notice]
+================================
+Ce module n’est **plus utilisé** dans l’architecture actuelle d’Ultramotion IGT Inference.
+
+⏳ Ancien rôle :
+----------------
+`decode.py` servait à convertir les messages IGTLink (`IMAGE`, `TRANSFORM`, etc.)
+en structures internes `RawFrame(image, meta)` via la fonction `decode_igt_image()`.
+
+Cela permettait autrefois d’isoler la logique de décodage du thread réseau.
+
+🚀 Nouvelle architecture :
+--------------------------
+Depuis la refonte du pipeline, cette étape est directement intégrée dans :
+    → `service/plus_client.py`  (fonction `run_plus_client()`)
+
+Désormais :
+  - Le thread RX lancé par `IGTGateway.start()` via `THREAD_REGISTRY["rx"]`
+    appelle `run_plus_client()`.
+  - Cette fonction reçoit les messages IGTLink (via pyigtl),
+    convertit immédiatement le buffer en `np.ndarray`,
+    crée un `FrameMeta` et un `RawFrame`,
+    puis les empile dans la file `mailbox` du Gateway.
+
+En d’autres termes :
+    PlusServer → run_plus_client() → RawFrame(image, meta) → mailbox
+et non plus :
+    PlusServer → decode_igt_image() → RawFrame → mailbox
+
+💡 Ce fichier est conservé uniquement :
+  - pour compatibilité ascendante (anciens scripts/tests),
+  - comme référence pour le décodage IGTLink pur (hors thread réseau).
+
+"""
+
+
 """IGTLink message decoding helpers.
 
 Ce module contient des fonctions pures pour convertir les messages IGTLink

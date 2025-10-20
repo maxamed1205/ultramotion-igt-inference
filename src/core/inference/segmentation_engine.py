@@ -1,3 +1,24 @@
+"""
+💡 Note 19/10/2025 à 16h30 — module actif mais non implémenté (Process C)
+=====================================================
+Ce module est **toujours utilisé dans la pipeline** actuelle :
+il correspond à l’étape d’inférence (Process C) entre la queue GPU
+et la production du `ResultPacket` envoyé vers Slicer.
+
+Flux actuel :
+    RawFrame (CPU) → cpu_to_gpu.py → GpuFrame (torch.Tensor)
+    → segmentation_engine.py → ResultPacket → Gateway._outbox → Slicer
+
+⚙️ À implémenter :
+- initialize_models() : chargement D-FINE / MobileSAM
+- run_inference() : inférence GPU, FP16, CUDA streams
+- fuse_outputs() : standardisation du résultat (mask, score, état)
+
+Ce fichier n’est **pas déprécié**.
+Il constitue la base du Process C (inférence) de la pipeline Ultramotion.
+"""
+
+
 """Segmentation engine — Process C (squelette)
 
 Description

@@ -26,7 +26,7 @@ formatters:  # définition des formats de sortie des messages
   # Exemple : kpi ts=2025-10-18 21:02:14,321 fps_rx=23.4 latency_ms=42.1 drops=0
   # Avantage : format lisible par un humain tout en restant facilement analysable par un script (ex: pandas)
   kpi:
-    format: "kpi ts=%(asctime)s %(message)s"  # timestamp au format humain (YYYY-MM-DD HH:MM:SS,ms)
+    format: "kpi ts_log=%(asctime)s %(message)s"  # timestamp au format humain (YYYY-MM-DD HH:MM:SS,ms)
     
 filters:  # définition des filtres de log
   perf_filter:

@@ -4,9 +4,9 @@ from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler  #
 from typing import Optional, Dict  # annotations de types (optionnel, dict)
 
 # Module-level references for health checks
-_log_queue: Optional[queue.Queue] = None  # référence globale vers la file de logs (pour diagnostics)
-_listener_obj = None  # référence globale vers l’objet QueueListener (pour vérifier s’il est vivant)
-_health_thread = None  # référence globale vers le thread de santé (surveillance du système de logs asynchrone)
+_log_queue: Optional[queue.Queue] = None  # Conteneur FIFO central pour les messages, référence globale vers la file de logs (pour diagnostics)
+_listener_obj = None  # Thread de consommation/écriture vers les fichiers., référence globale vers l’objet QueueListener (pour vérifier s’il est vivant), Référence au thread consommateur qui écrit sur disque
+_health_thread = None  # Surveillant automatique du système de logs, référence globale vers le thread de santé (surveillance du système de logs asynchrone)
 
 
 def setup_async_logging(  # fonction d’installation du sous-système de logging asynchrone
@@ -16,7 +16,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     remove_yaml_file_handlers: bool = True,  # supprime les handlers fichiers déjà présents (évite doublons)
     replace_root: bool = False,  # si True, remplace les handlers du logger racine par le QueueHandler
     create_error_handler: bool = True,  # si True, crée un handler dédié error.log (sink unique des erreurs)
-):
+    ):
     """Configure an asynchronous logging subsystem with a central queue.  # docstring : configure un logging asynchrone à file centrale
 
     Behavior:  # comportement global
@@ -39,12 +39,11 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     log_queue: queue.Queue = queue.Queue(-1)  # file non bornée (-1) qui recevra tous les messages de logs
 
-    # Determine formatters from yaml_cfg if provided, otherwise use defaults  # récupère les formatters depuis le YAML si possible
     std_formatter = None  # formatter standard (pipeline.log)
     kpi_formatter = None  # formatter KPI (kpi.log)
     if yaml_cfg and isinstance(yaml_cfg, dict):  # si une config YAML valide est fournie
         fmts = yaml_cfg.get("formatters", {})  # récupère la section "formatters" de logging.yaml
-        # Build formatter objects from the format strings if present  # construit les objets logging.Formatter si des formats sont définis
+        # construit les objets logging.Formatter si des formats sont définis
         if "standard" in fmts and isinstance(fmts["standard"], dict):  # si un formatter "standard" est décrit
             std_fmt = fmts["standard"].get("format")  # lit la chaîne de format associée
             if std_fmt:  # si non vide
@@ -54,7 +53,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
             if kpi_fmt:  # si non vide
                 kpi_formatter = logging.Formatter(kpi_fmt)  # crée l’objet Formatter pour le format KPI
 
-    # Fallback formatters  # valeurs de repli si YAML n’a pas fourni les formats
+     # valeurs de repli si YAML n’a pas fourni les formats
     if std_formatter is None:  # si aucun formatter standard n’a été trouvé
         std_formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(processName)s/%(threadName)s | %(name)s | %(message)s")  # format par défaut complet
     if kpi_formatter is None:  # si aucun formatter KPI n’a été trouvé
@@ -63,8 +62,8 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     handler_main = RotatingFileHandler(f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5)  # handler fichier avec rotation pour pipeline.log (10 Mo, 5 backups)
     handler_main.setLevel(logging.DEBUG)  # capte tous les niveaux jusqu’à DEBUG
     handler_main.setFormatter(std_formatter)  # applique le formatter standard
-    # exclude ERROR+ from pipeline main (they go to error.log)  # exclut ERROR+ de pipeline.log (redirigés vers error.log)
-    try:
+    
+    try: # exclut ERROR+ de pipeline.log (redirigés vers error.log)
         from core.monitoring.filters import NoErrorFilter  # filtre maison pour retirer ERROR des handlers non dédiés
         handler_main.addFilter(NoErrorFilter())  # ajoute le filtre NoErrorFilter sur pipeline.log
     except Exception:
@@ -74,7 +73,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     handler_kpi.setLevel(logging.INFO)  # n’accepte que INFO et plus
     handler_kpi.setFormatter(kpi_formatter)  # applique le formatter KPI
 
-    # Optional: JSONL KPI file (structured) controlled by KPI_JSONL env var  # option d’un sink KPI au format JSONL via variable d’environnement
+    # option d’un sink KPI au format JSONL via variable d’environnement
     import os  # ré-import local (autorisé, inoffensif)
     kpi_jsonl_handler = None  # handler JSONL optionnel initialisé à None
     listener_handlers = [handler_main, handler_kpi]  # liste des handlers gérés par le QueueListener
@@ -89,7 +88,6 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
         except Exception:
             pass  # si indisponible, on ignore sans interrompre l’installation
 
-    # Error handler: create if requested. Prefer a single error sink under async mode.  # handler dédié aux erreurs : un seul sink en mode async
     if create_error_handler:  # si l’option de création du handler d’erreurs est activée
         handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3)  # error.log (≈7 Mo, 3 backups)
         handler_err.setLevel(logging.ERROR)  # ne prend que ERROR et CRITICAL
@@ -99,18 +97,16 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     listener = QueueListener(log_queue, *listener_handlers)  # crée le QueueListener avec tous les handlers de sortie
     listener.start()  # démarre le thread interne du QueueListener
 
-    # store module-level references  # conserve des références globales pour contrôle/diagnostic
-    global _log_queue, _listener_obj  # déclare l’utilisation des variables globales
-    _log_queue = log_queue  # mémorise la file globale
+    global _log_queue, _listener_obj  # "globale" autoriser la modification d’une variable globale depuis l’intérieur d’une fonction,déclare l’utilisation des variables globales pour contrôle/diagnostic
+    _log_queue = log_queue  # une copie de la référence dans une variable globale, ce qui permet à d’autres fonctions d’y accéder plus tard, mémorise la file globale
     _listener_obj = listener  # mémorise le listener global
 
     queue_handler = QueueHandler(log_queue)  # crée un QueueHandler qui poussera les logs dans la file centrale
 
     target_logger = logging.getLogger(attach_to_logger) if attach_to_logger else logging.getLogger()  # récupère le logger cible (ou root si vide)
 
-    # Remove file handlers defined in YAML from target logger to avoid duplication  # supprime les handlers fichiers YAML pour éviter les doublons
     if remove_yaml_file_handlers:  # seulement si demandé
-        # Traverse all loggers that start with the attach_to_logger prefix and remove file handlers  # parcours des loggers descendants pour nettoyage
+        # parcours des loggers descendants pour nettoyage
         prefix = attach_to_logger + "." if attach_to_logger else ""  # préfixe de la hiérarchie (ex: "igt.")
         # Remove from the direct target logger  # suppression sur le logger cible direct
         def remove_file_handlers_from_logger(lgr):  # fonction utilitaire de retrait de handlers fichiers
@@ -139,28 +135,19 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
         except Exception:
             pass  # si l’accès au manager échoue, on continue sans bloquer
 
-    # Attach the QueueHandler to the target logger  # attache le QueueHandler au logger cible
     target_logger.addHandler(queue_handler)  # désormais, tous ses logs iront dans la file asynchrone
 
-    # Optionally adjust logger level to ensure messages are passed through.  # ajuste le niveau pour garantir le passage des messages
-    # If we're attaching to the root logger, ensure its level allows INFO KPIs  # si on attache au root, s’assurer qu’INFO passe
     try:
         root_logger = logging.getLogger()  # récupère le logger racine
         if target_logger is root_logger:  # si le logger cible est le root
-            # If root is set to a higher level (e.g. WARNING) we still want  # si root est trop haut (WARNING+), on abaisse
-            # KPI INFO messages to be processed by the queue handler.  # pour laisser passer les KPI INFO
             if root_logger.level > logging.INFO:  # test du niveau actuel
                 root_logger.setLevel(logging.INFO)  # abaisse le niveau à INFO
         else:
-            # For non-root target loggers preserve previous behavior: only  # pour un logger non-root, on n’écrase pas un niveau explicite
-            # set level when it was explicitly unset (0).  # on fixe seulement si niveau 0 (non configuré)
             if target_logger.level == 0:  # 0 signifie “pas de niveau défini”
                 target_logger.setLevel(logging.INFO)  # fixe à INFO pour garantir la remontée des KPI
     except Exception:
-        # Never let logging configuration break startup  # ne jamais bloquer le démarrage sur erreur de config
         pass  # on ignore l’erreur silencieusement
 
-    # If replace_root is requested, attach queue handler to root instead  # option : remplacer les handlers du root par le QueueHandler
     if replace_root:  # si demandé par l’appelant
         root = logging.getLogger()  # récupère le logger racine
         for h in list(root.handlers):  # itère sur copie pour modifier en sécurité
@@ -170,7 +157,6 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
                 pass  # ignore les erreurs de retrait
         root.addHandler(queue_handler)  # attache le QueueHandler au root (pipeline asynchrone global)
 
-    # return both queue and the listener so callers/tests can access the queue  # retourne la file et le listener pour contrôle externe
     return log_queue, listener  # tuple (file de logs, QueueListener démarré)
 
 

@@ -251,92 +251,89 @@ def start_monitor_thread(config: Optional[Dict] = None) -> None:
     LOG.info("Monitor thread started (interval=%.2fs)", interval)  # message de démarrage
 
     def _loop():  # fonction interne exécutée dans un thread indépendant
-        # boucle légère : émet des valeurs fictives par défaut sauf si remplacée par des hooks réels
-        while True:
+
+        while True: # boucle légère : émet des valeurs fictives par défaut sauf si remplacée par des hooks réels
             try:
-                # Ces valeurs sont simulées ici ; elles seront remplacées plus tard par de vrais compteurs
-                fps_in, fps_out, latency_ms = 25.0, 25.0, 40.0
-                # essaie d’obtenir l’utilisation réelle du GPU (si pynvml est disponible)
-                gpu_util = get_gpu_utilization()
-                # collecte les métriques du gateway s’il a été passé dans la configuration
-                gw = (config or {}).get("gateway") if isinstance(config, dict) else None
-                gw_metrics = collect_gateway_metrics(gw) if gw is not None else {}
-
-                # enregistre cet échantillon dans l’historique mémoire pour lisser les valeurs
-                agg = aggregate_metrics(fps_in, fps_out, latency_ms, gpu_util)
-
-                # compose un message de monitoring contenant les valeurs instantanées et les métriques de queue
-                q_metrics = collect_queue_metrics()
-                msg = (
-                    f"[monitor] ts={time.time():.3f} "
-                    f"fps_in={fps_in:.2f} fps_out={fps_out:.2f} "
-                    f"latency_ms={latency_ms:.1f} gpu_util={gpu_util:.1f} "
-                    f"q_rt={q_metrics.get('Queue_RT_dyn', {}).get('size', 0)} "
-                    f"drops_rt={q_metrics.get('Queue_RT_dyn', {}).get('drops', 0)} "
+                # ⚠️ TODO Remplacer les valeurs simulées par de vrais compteurs de la pipeline
+                fps_in, fps_out, latency_ms = 25.0, 25.0, 40.0 # Ces valeurs sont simulées ici ; elles seront remplacées plus tard par de vrais compteurs
+                gpu_util = get_gpu_utilization() # essaie d’obtenir l’utilisation réelle du GPU (si pynvml est disponible)
+                
+                gw = (config or {}).get("gateway") if isinstance(config, dict) else None # collecte les métriques du gateway s’il a été passé dans la configuration
+                gw_metrics = collect_gateway_metrics(gw) if gw is not None else {}  
+                agg = aggregate_metrics(fps_in, fps_out, latency_ms, gpu_util) # enregistre cet échantillon dans l’historique mémoire pour lisser les valeurs
+                
+                q_metrics = collect_queue_metrics() # compose un message de monitoring contenant les valeurs instantanées et les métriques de queue
+                
+                msg = (  # construit le message de monitoring complet (toutes les métriques clés)
+                    f"[monitor] ts={time.time():.3f} "  # horodatage courant (secondes depuis epoch, arrondi à 3 décimales)
+                    f"fps_in={fps_in:.2f} fps_out={fps_out:.2f} "  # fréquences d'entrée/sortie de la pipeline (images/s)
+                    f"latency_ms={latency_ms:.1f} gpu_util={gpu_util:.1f} "  # latence moyenne (ms) et taux d’utilisation GPU (%)
+                    f"q_rt={q_metrics.get('Queue_RT_dyn', {}).get('size', 0)} "  # taille actuelle de la queue temps réel (nombre d’éléments)
+                    f"drops_rt={q_metrics.get('Queue_RT_dyn', {}).get('drops', 0)} "  # nombre d’images perdues dans la queue temps réel
                 )
-                # ajoute les champs relatifs au gateway si présents
-                if gw_metrics:
-                    msg += (
-                        f" fps_rx={gw_metrics.get('fps_rx', 0.0):.1f} "
-                        f"fps_tx={gw_metrics.get('fps_tx', 0.0):.1f} "
-                        f"MB_rx={gw_metrics.get('bytes_rx_MB', 0.0):.3f} "
-                        f"MB_tx={gw_metrics.get('bytes_tx_MB', 0.0):.3f} "
-                        f"latency_gw={gw_metrics.get('latency_ms', 0.0):.1f} "
-                        f"fps_target={gw_metrics.get('fps_target', 0.0):.1f}"
+
+
+                if gw_metrics: # ajoute les champs relatifs au gateway si présents
+                    msg += (  # ajoute au message principal les métriques spécifiques au gateway (réseau IGTLink)
+                        f" fps_rx={gw_metrics.get('fps_rx', 0.0):.1f} "  # fréquence de réception depuis PlusServer (images/s)
+                        f"fps_tx={gw_metrics.get('fps_tx', 0.0):.1f} "  # fréquence d’émission vers Slicer ou autres clients (images/s)
+                        f"MB_rx={gw_metrics.get('bytes_rx_MB', 0.0):.3f} "  # débit de réception (mégaoctets/s)
+                        f"MB_tx={gw_metrics.get('bytes_tx_MB', 0.0):.3f} "  # débit d’émission (mégaoctets/s)
+                        f"latency_gw={gw_metrics.get('latency_ms', 0.0):.1f} "  # latence moyenne mesurée au niveau du gateway (ms)
+                        f"fps_target={gw_metrics.get('fps_target', 0.0):.1f}"  # fréquence cible configurée pour la capture (images/s)
                     )
 
-                # si une moyenne lissée est disponible, on l’utilise pour remplacer les valeurs brutes
-                if agg is not None:
+
+                if agg is not None: # si une moyenne lissée est disponible, on l’utilise pour remplacer les valeurs brutes
                     try:
-                        msg = (
-                            f"[monitor] ts={time.time():.3f} "
-                            f"fps_in={agg['fps_in']:.2f} fps_out={agg['fps_out']:.2f} "
-                            f"latency_ms={agg['latency_ms']:.1f} gpu_util={agg['gpu_util']:.1f} "
-                        ) + (msg.split('q_rt=')[-1] if 'q_rt=' in msg else '')
+                        msg = (  # reconstruit un message de monitoring à partir des moyennes glissantes (valeurs lissées)
+                            f"[monitor] ts={time.time():.3f} "  # horodatage courant (en secondes, 3 décimales)
+                            f"fps_in={agg['fps_in']:.2f} fps_out={agg['fps_out']:.2f} "  # fréquences d’entrée/sortie moyennes (images/s)
+                            f"latency_ms={agg['latency_ms']:.1f} gpu_util={agg['gpu_util']:.1f} "  # latence moyenne et taux d’utilisation GPU (%)
+                        ) + (  # ajoute la fin du message précédent contenant les métriques de queue si elles existaient
+                            msg.split('q_rt=')[-1] if 'q_rt=' in msg else ''  # préserve les métriques de queue et drops si déjà présentes
+                        )
                     except Exception:
                         LOG.debug("Échec du formatage de la moyenne lissée ; utilisation des valeurs instantanées")
-
-                # si le système KPI est activé, on logge les métriques sous forme structurée
-                if is_kpi_enabled():
+                
+                if is_kpi_enabled(): # si le système KPI est activé, on logge les métriques sous forme structurée
                     try:
                         from core.monitoring.kpi import format_kpi
+                        kdata = {  # dictionnaire complet contenant les données KPI (Key Performance Indicators)
+                            "ts": time.time(),  # horodatage actuel en secondes (timestamp UNIX)
+                            "fps_in": fps_in,  # fréquence d’arrivée des images dans la pipeline (images/s)
+                            "fps_out": fps_out,  # fréquence de sortie des images traitées (images/s)
+                            "latency_ms": latency_ms,  # latence moyenne observée entre réception et sortie (millisecondes)
+                            "gpu_util": gpu_util,  # taux d’utilisation GPU actuel (%)
 
-                        kdata = {  # dictionnaire complet contenant les données KPI
-                            "ts": time.time(),
-                            "fps_in": fps_in,
-                            "fps_out": fps_out,
-                            "latency_ms": latency_ms,
-                            "gpu_util": gpu_util,
-                            # informations sur les files
-                            "q_rt": q_metrics.get('Queue_RT_dyn', {}).get('size', 0),
-                            "q_gpu": q_metrics.get('Queue_GPU', {}).get('size', 0),
-                            "drops_rt": q_metrics.get('Queue_RT_dyn', {}).get('drops', 0),
-                            "drops_gpu": q_metrics.get('Queue_GPU', {}).get('drops', 0),
+                            # informations sur les files internes (queues)
+                            "q_rt": q_metrics.get('Queue_RT_dyn', {}).get('size', 0),  # taille de la queue temps réel (nombre d’éléments)
+                            "q_gpu": q_metrics.get('Queue_GPU', {}).get('size', 0),  # taille de la queue GPU (frames en attente d’inférence)
+                            "drops_rt": q_metrics.get('Queue_RT_dyn', {}).get('drops', 0),  # nombre d’images perdues dans la queue temps réel
+                            "drops_gpu": q_metrics.get('Queue_GPU', {}).get('drops', 0),  # nombre d’images perdues dans la queue GPU
                         }
-                        # ajout des métriques du gateway si disponibles
-                        if gw_metrics:
-                            kdata.update({
-                                "fps_rx": gw_metrics.get('fps_rx', 0.0),
-                                "fps_tx": gw_metrics.get('fps_tx', 0.0),
-                                "MB_rx": gw_metrics.get('bytes_rx_MB', 0.0),
-                                "MB_tx": gw_metrics.get('bytes_tx_MB', 0.0),
-                                "avg_latency_ms": gw_metrics.get('avg_latency_ms', gw_metrics.get('latency_ms', 0.0)),
-                                "drops_rx_total": gw_metrics.get('drops_rx_total', 0),
-                                "drops_tx_total": gw_metrics.get('drops_tx_total', 0),
-                            })
 
+                        if gw_metrics:  # ajout des métriques du gateway si disponibles (réseau IGTLink actif)
+                            kdata.update({  # fusionne les métriques du gateway dans le dictionnaire KPI global
+                                "fps_rx": gw_metrics.get('fps_rx', 0.0),  # fréquence de réception d’images depuis PlusServer (images/s)
+                                "fps_tx": gw_metrics.get('fps_tx', 0.0),  # fréquence d’envoi des images traitées vers Slicer ou autres clients (images/s)
+                                "MB_rx": gw_metrics.get('bytes_rx_MB', 0.0),  # débit de réception réseau (mégaoctets/s)
+                                "MB_tx": gw_metrics.get('bytes_tx_MB', 0.0),  # débit d’émission réseau (mégaoctets/s)
+                                "avg_latency_ms": gw_metrics.get('avg_latency_ms', gw_metrics.get('latency_ms', 0.0)),  # latence moyenne mesurée au niveau du gateway (ms)
+                                "drops_rx_total": gw_metrics.get('drops_rx_total', 0),  # nombre total de paquets ou images perdues en réception
+                                "drops_tx_total": gw_metrics.get('drops_tx_total', 0),  # nombre total de paquets ou images perdues en émission
+                            })
                         kmsg = format_kpi(kdata)  # formate les données KPI en texte clé=valeur
                         safe_log_kpi(kmsg)  # envoie le message vers logs/kpi.log via le logger igt.kpi
                     except Exception:
                         LOG.exception("safe_log_kpi a échoué (monitor)")  # journalise une erreur si l’émission KPI échoue
                 else:
                     LOG.info("KPI: %s", msg)  # sinon logge le message textuel dans le logger général
-
-                # export périodique d’un snapshot JSON (tous les N ticks, configurable)
-                try:
+                
+                try: # export périodique d’un snapshot JSON (tous les N ticks, configurable)
                     tick = getattr(start_monitor_thread, "_tick_counter", 0) + 1  # incrémente le compteur interne
-                    setattr(start_monitor_thread, "_tick_counter", tick)
-                    export_every = (config or {}).get("snapshot_every", 10) if isinstance(config, dict) else 10
+                    setattr(start_monitor_thread, "_tick_counter", tick)  # stocke le compteur interne de ticks dans la fonction (sert à suivre le nombre d’itérations du thread)
+                    export_every = (config or {}).get("snapshot_every", 10) if isinstance(config, dict) else 10  # définit la fréquence d’export ou de snapshot des métriques (par défaut toutes les 10 itérations)
                     if tick % export_every == 0:  # tous les N intervalles, on exporte un snapshot
                         export_kpi_snapshot("logs/kpi_snapshot.json")
                 except Exception:
@@ -346,6 +343,7 @@ def start_monitor_thread(config: Optional[Dict] = None) -> None:
                 LOG.exception("Exception dans la boucle du thread de monitoring")  # capture toute erreur pour éviter l’arrêt du thread
 
     import threading
+    # ⚠️ TODO S’exécute indéfiniment tant que le programme tourne, Pas de stop_event → le thread ne peut pas être arrêté proprement pour l’instant.
     threading.Thread(target=_loop, name="MonitorThread", daemon=True).start()  # démarre le thread en mode démon
     # note : implémentation complète (join, stop event, etc.) non encore présente
     return
@@ -379,6 +377,8 @@ def log_pipeline_metrics(
 
 
 def adjust_rt_queue_size(current_size: int, metrics: Dict) -> int:
+    # ⚠️ TODO fonction utilitaire prévue pour ajuster dynamiquement la taille de la file temps réel principale (Queue_RT_dyn)
+    # future implémentation PID
     """Calcule et retourne la nouvelle taille souhaitée pour la file (queue) temps réel dynamique.
 
     Args:
@@ -388,7 +388,8 @@ def adjust_rt_queue_size(current_size: int, metrics: Dict) -> int:
     Returns:
         La nouvelle taille (int), ajustée selon les métriques. Ici, retourne la taille actuelle (fonction factice).
     """
-    # Fonction encore non implémentée : pour l’instant, renvoie simplement la taille actuelle.
+    # ⚠️ TODO Fonction encore non implémentée : pour l’instant, renvoie simplement la taille actuelle.
+    # future implémentation PID
     LOG.debug("adjust_rt_queue_size appelé avec current_size=%s", current_size)
     return current_size  # aucune modification de la taille n’est encore appliquée
 
@@ -403,14 +404,4 @@ def get_pipeline_metrics() -> Dict:
         }
     """
     # collect_queue_metrics() retourne l’état actuel de chaque file : taille, nombre de drops, etc.
-    return {"queues": collect_queue_metrics(), "timestamp": time.time()}
-
-    """Return a snapshot of pipeline metrics including queue KPIs and timestamp.
-
-    Structure:
-        {
-            "queues": { ... },
-            "timestamp": <float>
-        }
-    """
     return {"queues": collect_queue_metrics(), "timestamp": time.time()}

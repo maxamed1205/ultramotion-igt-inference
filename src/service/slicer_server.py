@@ -1,3 +1,32 @@
+"""
+⚠️ [Deprecated / Legacy Notice]
+================================
+Ce module n’est **plus utilisé** dans l’architecture actuelle d’Ultramotion IGT Inference.
+
+⏳ Ancien rôle :
+----------------
+`slicer_sender.py` servait de thread d’envoi vers 3D Slicer.
+Il lisait les masques produits par la pipeline (`Queue_Out`)
+et les transmettait via un serveur pyigtl externe.
+
+🚀 Nouvelle architecture :
+--------------------------
+Depuis la refonte du Gateway (`IGTGateway`), cette tâche est entièrement
+prise en charge par :
+    → `service/slicer_server.py`  (fonction `run_slicer_server()`)
+
+Le pipeline TX fonctionne désormais ainsi :
+    Segmentation → Gateway._outbox → run_slicer_server() → 3D Slicer
+
+Les threads RX/TX sont lancés automatiquement depuis `IGTGateway.start()`
+via le `THREAD_REGISTRY` (défini dans `service/registry.py`).
+
+💡 Ce fichier est conservé uniquement à titre historique / référence de design.
+Il n’est plus importé ni exécuté dans la version actuelle.
+"""
+
+
+
 """Slicer server thread: reads masks from outbox and emits IGTLink IMAGE messages.
 
 This module tries to use `pyigtl` when available; otherwise it provides a

@@ -1,3 +1,40 @@
+"""
+💡 Note 19/10/2025 à 16h30 — module actif mais non implémenté (Process B)
+=====================================================
+Ce module fait partie intégrante de la pipeline Ultramotion actuelle.
+
+🔹 Rôle :
+---------
+`cpu_to_gpu.py` correspond au **Process B** dans la chaîne A→B→C→D :
+
+    A. Acquisition         → service/plus_client.py (PlusServer → RawFrame)
+    👉 B. Préprocessing     → core/preprocessing/cpu_to_gpu.py (RawFrame → GpuFrame)
+    C. Inférence           → core/inference/segmentation_engine.py (GpuFrame → ResultPacket)
+    D. Sortie vers Slicer  → service/slicer_server.py (ResultPacket → 3D Slicer)
+
+Il assure la préparation et le transfert des images CPU (numpy arrays)
+vers le GPU sous forme de tensors Torch, en vue de l’inférence IA.
+
+🔧 État actuel :
+----------------
+Ce fichier contient uniquement des squelettes et docstrings.
+Les fonctions sont déjà intégrées dans la structure du pipeline :
+elles seront appelées automatiquement par le Process B pour consommer
+`Queue_RT_dyn` et alimenter `Queue_GPU`.
+
+Aucune refonte nécessaire — il suffit plus tard d’implémenter :
+    - la conversion numpy → torch.Tensor
+    - la normalisation / mise en forme (channels_first, dtype)
+    - les transferts asynchrones CUDA (copy_async + pinned memory)
+
+⚙️ En résumé :
+--------------
+✅ Module **actif et nécessaire**
+❌ Implémentation encore minimale (placeholders)
+📍 Étape “B” du pipeline A→B→C→D (préparation CPU → GPU)
+"""
+
+
 """CPU -> GPU helpers (Process B)
 
 Description
