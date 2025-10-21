@@ -254,6 +254,8 @@ class GpuFrame:
     # avoid importing torch during normal execution when it's not available.
     tensor: Optional["Tensor"]
     meta: FrameMeta
+    # Optional CUDA stream associated with the transfer. None for CPU fallback.
+    stream: Optional[object] = None
 
 
 @dataclass
