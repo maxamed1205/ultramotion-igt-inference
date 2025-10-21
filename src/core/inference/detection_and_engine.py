@@ -1,3 +1,9 @@
+# ⚠️ TODO [Phase 3] : ROI crop 100 % GPU
+# Utiliser torch.nn.functional.grid_sample() ou roi_align pour découper la ROI
+# directement sur frame_t.cuda(), sans .cpu() ni numpy slicing.
+# Attention : effectuer le crop seulement si state_hint == "VISIBLE".
+# Cela remplacera la version CPU actuelle (plus lente).
+
 """
 Module d’inférence combinée D-FINE + MobileSAM (Process C)
 ==========================================================
@@ -232,6 +238,9 @@ def initialize_models(model_paths: Dict[str, str], device: str = "cuda") -> Dict
 
     if torch_device.type == "cuda":
         try:
+            # ⚠️ TODO [Phase 3] : ajuster les priorités de streams
+            # D-FINE = haute priorité (priority=-1)
+            # SAM    = priorité normale (priority=0)
             stream_dfine = torch.cuda.Stream()
             stream_sam = torch.cuda.Stream()
             with torch.inference_mode():

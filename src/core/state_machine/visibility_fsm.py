@@ -118,6 +118,13 @@ def evaluate_visibility(
     # ==================================================================
     # Bloc 3 — Logique FSM
     # ==================================================================
+
+    # ⚠️ TODO [Phase 3 - Scheduler adaptatif]
+    # Si conf_t reste élevé sur N frames consécutives et que la cible est stable (S_total>θ_on),
+    # permettre de "skipper" temporairement la détection D-FINE pendant k frames.
+    # L'état reste VISIBLE, seule la segmentation MobileSAM est actualisée.
+    # À implémenter via un compteur de stabilité (heartbeat D-FINE toutes les K frames).
+
     θ_on = thresholds.get("theta_on", 0.6)
     θ_off = thresholds.get("theta_off", 0.4)
     θ_cont = thresholds.get("theta_cont", 0.5)

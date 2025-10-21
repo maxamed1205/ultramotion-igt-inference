@@ -1,3 +1,78 @@
+"""
+core/queues/buffers.py
+======================
+
+📆 Mise à jour : 2025-10-21
+📦 Statut : PARTIELLEMENT DÉPRÉCIÉ depuis l’introduction du module `service.gateway`
+
+─────────────────────────────────────────────────────────────
+🏗️ 1. Pipeline actuelle (architecture v2 Gateway)
+─────────────────────────────────────────────────────────────
+
+Depuis la refonte de l’architecture temps réel en octobre 2025,
+la gestion des files RX/TX ne repose plus sur les queues Python
+classiques de ce module, mais sur des structures adaptatives plus
+légères (`AdaptiveDeque`) situées dans :
+
+    → service/gateway/manager.py
+    → core/queues/adaptive.py
+
+Les composants suivants ont remplacé les anciens buffers :
+
+    • _mailbox : AdaptiveDeque[RawFrame]
+        - file d’entrée à faible latence (frames reçues depuis PlusServer)
+    • _outbox  : AdaptiveDeque[(mask, meta)]
+        - file de sortie vers 3D Slicer
+    • SupervisorThread (service/gateway/supervisor.py)
+        - contrôle en continu le flux RX/TX, les drops et le FPS
+
+Ces files remplacent désormais l’ancien couple :
+    Queue_RT_dyn / Queue_Out
+et assurent la politique “drop-oldest” directement au niveau du deque.
+
+─────────────────────────────────────────────────────────────
+💡 2. Éléments toujours utilisés (non dépréciés)
+─────────────────────────────────────────────────────────────
+
+Les queues suivantes conservent leur rôle dans la **pipeline d’inférence locale**
+(Process B → C → FSM), notamment pour les tests hors ligne ou la simulation GPU :
+
+    - Queue_GPU   : tampon de tensors GPU (entre cpu_to_gpu et inference)
+    - Queue_Out   : file de sortie des ResultPacket (mock ou offline)
+    - try_dequeue / enqueue_nowait_out : utilitaires encore appelés par
+      core/inference/detection_and_engine.py et core/inference/dfine_infer.py
+
+Ces éléments resteront valides tant que la pipeline interne (hors passerelle)
+s’appuiera sur un modèle “Queue + Thread”.
+
+─────────────────────────────────────────────────────────────
+🪦 3. Éléments dépréciés (remplacés par AdaptiveDeque)
+─────────────────────────────────────────────────────────────
+
+Les queues suivantes ne sont plus utilisées par le service en production :
+
+    - Queue_Raw     → remplacée par IGTGateway._mailbox (AdaptiveDeque)
+    - Queue_RT_dyn  → remplacée par IGTGateway._mailbox
+    - Queue_Out     (dans ce module) → remplacée par IGTGateway._outbox
+    - adaptive_queue_resize() → sans effet (placeholder hérité)
+    - drop_oldest_policy_*() → remplacées par la logique intégrée d’AdaptiveDeque
+
+Ces fonctions sont conservées pour compatibilité descendante
+(anciens scripts, tests unitaires, pipeline CPU-only).
+
+─────────────────────────────────────────────────────────────
+🧩 4. Recommandation
+─────────────────────────────────────────────────────────────
+
+- Conserver ce module pour les pipelines locales ou de test.
+- Utiliser `core.queues.adaptive` pour toute exécution temps réel via IGTGateway.
+- Lors de la fusion complète de la pipeline (v3), ce fichier pourra être déplacé
+  sous `legacy/` ou supprimé une fois les dépendances internes migrées.
+
+─────────────────────────────────────────────────────────────
+"""
+
+
 """Queues et buffers centralisés
 
 Description

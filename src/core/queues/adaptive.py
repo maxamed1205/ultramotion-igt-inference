@@ -1,4 +1,112 @@
 """
+core/queues/adaptive.py
+=======================
+
+📆 Mise à jour : 2025-10-21
+📦 Statut : ACTIF — composant central de la pipeline temps réel v2 (Gateway)
+
+─────────────────────────────────────────────────────────────
+🏗️ 1. Rôle dans la pipeline Ultramotion v2
+─────────────────────────────────────────────────────────────
+
+Ce module fournit les **structures de files adaptatives** utilisées dans la
+pipeline moderne (`service.gateway`) pour gérer le flux **temps réel IGTLink** :
+
+🧩 Étapes concernées :
+    PlusServer (RX)
+        ↓
+    ➤ service.plus_client.run_plus_client()
+        ↓
+    ➤ service.gateway.manager.IGTGateway._mailbox  ← (AdaptiveDeque)
+        ↓
+    ➤ Process B/C (inférence GPU)
+        ↓
+    ➤ service.gateway.manager.IGTGateway._outbox   ← (AdaptiveDeque)
+        ↓
+    ➤ Slicer (TX via IGTLink)
+
+Ces files (_mailbox / _outbox) remplacent les anciennes `queue.Queue`
+de `core.queues.buffers` et sont optimisées pour :
+    - la **faible latence** (drop-oldest immédiat si pleine),
+    - la **sécurité multithread** (Lock interne),
+    - et la **reconfiguration dynamique** de capacité (resize à chaud).
+
+─────────────────────────────────────────────────────────────
+⚙️ 2. Fonctionnement
+─────────────────────────────────────────────────────────────
+
+🔹 Classe principale : `AdaptiveDeque`
+---------------------------------------------------------------
+- Encapsule un `collections.deque` classique, mais ajoute :
+  • un verrou (`Lock`) pour la sécurité d’accès multithread,
+  • une méthode `.resize(new_maxlen)` pour modifier la capacité
+    sans perdre la référence partagée entre producteurs/consommateurs.
+
+- Elle est utilisée par :
+  • `IGTGateway._mailbox` (entrée RX depuis PlusServer)
+  • `IGTGateway._outbox`  (sortie TX vers Slicer)
+
+- Son comportement “drop-oldest” est natif : lorsque le buffer atteint
+  `maxlen`, l’ajout d’un nouvel élément éjecte automatiquement le plus ancien.
+
+🔹 Fonction d’adaptation : `adjust_queue_size()`
+---------------------------------------------------------------
+- Appelée périodiquement par le **SupervisorThread** du Gateway.
+- Compare les ratios d’entrée/sortie :
+      fps_rx / fps_tx   et   MB_rx / MB_tx
+- Si le flux entrant dépasse le flux sortant → agrandit la file.
+- Si le flux sortant rattrape le flux entrant → la réduit.
+- Permet un ajustement adaptatif en continu selon la charge réelle du système.
+
+─────────────────────────────────────────────────────────────
+🧭 3. Quand intervient ce module ?
+─────────────────────────────────────────────────────────────
+
+🕒 Chronologie d’un cycle RX→TX :
+
+    [1] PlusServer envoie une image IGTLink
+         ↓
+    [2] plus_client.py la reçoit et l’empile dans _mailbox (AdaptiveDeque)
+         ↓
+    [3] L’inférence GPU lit la dernière frame depuis _mailbox
+         ↓
+    [4] Une fois le masque produit, il est placé dans _outbox
+         ↓
+    [5] Le thread TX envoie le masque à 3D Slicer
+         ↓
+    [6] Le Supervisor surveille les débits RX/TX et appelle
+         adjust_queue_size(_mailbox, fps_rx, fps_tx, MB_rx, MB_tx)
+
+⏱️ Résumé :
+    AdaptiveDeque intervient à **chaque frame** : il stocke,
+    temporise, et purge les frames selon le rythme de réception
+    et la disponibilité de traitement en aval.
+
+─────────────────────────────────────────────────────────────
+🧩 4. Éléments non dépréciés
+─────────────────────────────────────────────────────────────
+✅ `AdaptiveDeque` : utilisé activement dans la passerelle.
+✅ `adjust_queue_size()` : appelé par le superviseur Gateway.
+✅ Interfaces `append()`, `popleft()`, `pop()`, `clear()`, `__len__()`
+   → toutes exploitées dans les threads RX/TX.
+
+─────────────────────────────────────────────────────────────
+🪶 5. Comparaison rapide avec l’ancien système
+─────────────────────────────────────────────────────────────
+
+| Ancien module (buffers.py) | Nouveau module (adaptive.py) |
+|-----------------------------|------------------------------|
+| `queue.Queue(maxsize=N)`   | `AdaptiveDeque(maxlen=N)`    |
+| Bloquant si plein           | Non bloquant (drop-oldest)   |
+| Taille fixe                 | Taille dynamique (resize)    |
+| Heavy lock + overhead       | Léger, lock minimal          |
+| Géré par Process A/B/C      | Géré par Gateway (RX/TX)     |
+
+─────────────────────────────────────────────────────────────
+"""
+
+
+"""
 core.queues.adaptive
 --------------------
 
