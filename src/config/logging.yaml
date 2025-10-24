@@ -122,6 +122,11 @@ loggers:  # définition des loggers nommés par module
     level: DEBUG
     handlers: [console, file]
     propagate: no
+    
+  igt.queues.gpu_buffers:
+    level: DEBUG        # pour voir les allocations en détail
+    handlers: [console, file]
+    propagate: no
 
 
 root:  # logger racine (par défaut)

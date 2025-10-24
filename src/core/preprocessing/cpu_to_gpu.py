@@ -70,7 +70,6 @@ except Exception:  # pragma: no cover - runtime may not have torch in some test 
 
 from core.types import RawFrame, GpuFrame
 from core.queues.buffers import (
-    get_queue_rt_dyn,
     get_queue_gpu,
     try_dequeue,
     enqueue_nowait_gpu,
