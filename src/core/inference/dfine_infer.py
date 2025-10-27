@@ -66,12 +66,18 @@ def _cxcywh_norm_to_xyxy_abs(box_cxcywh: torch.Tensor, img_w: int, img_h: int) -
     return torch.stack((x1, y1, x2, y2), dim=-1)
 
 def _clip_xyxy_inplace(box_xyxy: torch.Tensor, img_w: int, img_h: int) -> torch.Tensor:
-    """Clippe la bbox dans les bornes de l’image (in-place si possible)."""
-    box_xyxy[..., 0].clamp_(0, img_w - 1)
-    box_xyxy[..., 1].clamp_(0, img_h - 1)
-    box_xyxy[..., 2].clamp_(0, img_w - 1)
-    box_xyxy[..., 3].clamp_(0, img_h - 1)
-    return box_xyxy
+    """Clippe la bbox dans les bornes de l'image (safe pour PyTorch 2.0+ inference_mode).
+    
+    Clone le tenseur avant toute modification pour éviter les erreurs "read-only"
+    en mode inference.
+    """
+    # Clone pour éviter toute modification du tenseur d'origine (read-only en inference_mode)
+    clipped = box_xyxy.clone()
+    clipped[..., 0] = clipped[..., 0].clamp(0, img_w - 1)
+    clipped[..., 1] = clipped[..., 1].clamp(0, img_h - 1)
+    clipped[..., 2] = clipped[..., 2].clamp(0, img_w - 1)
+    clipped[..., 3] = clipped[..., 3].clamp(0, img_h - 1)
+    return clipped
 
 
 # ============================================================
@@ -79,7 +85,7 @@ def _clip_xyxy_inplace(box_xyxy: torch.Tensor, img_w: int, img_h: int) -> torch.
 # ============================================================
 
 def preprocess_frame_for_dfine(frame_gpu: torch.Tensor) -> torch.Tensor:
-    """Prépare le tensor [1,1,H,W] pour D-FINE (mono-canal natif, pas de duplication).
+    """Prépare le tensor [1,3,H,W] pour D-FINE (RGB).
     - Vérifie device / forme.
     - Optionnel : channels_last, clamp de sécurité.
     - Zéro copie CPU.
@@ -87,8 +93,9 @@ def preprocess_frame_for_dfine(frame_gpu: torch.Tensor) -> torch.Tensor:
     if STRICT_SHAPE_CHECK:
         assert isinstance(frame_gpu, torch.Tensor), "frame_gpu doit être un torch.Tensor"
         assert frame_gpu.is_cuda, "frame_gpu doit être sur CUDA"
-        assert frame_gpu.ndim == 4 and frame_gpu.shape[0] == 1 and frame_gpu.shape[1] == 1, \
-            f"Attendu [1,1,H,W], reçu {tuple(frame_gpu.shape)}"
+        # Accept either grayscale [1,1,H,W] or RGB [1,3,H,W]
+        assert frame_gpu.ndim == 4 and frame_gpu.shape[0] == 1 and frame_gpu.shape[1] in (1, 3), \
+            f"Attendu [1,1,H,W] ou [1,3,H,W], reçu {tuple(frame_gpu.shape)}"
 
     x = frame_gpu
     if USE_CHANNELS_LAST:
@@ -96,7 +103,8 @@ def preprocess_frame_for_dfine(frame_gpu: torch.Tensor) -> torch.Tensor:
         x = x.contiguous(memory_format=torch.channels_last)
 
     if SAFE_CLAMP_INPLACE:
-        x = x.clamp_(0.0, 1.0)
+        # Use non-inplace clamp to avoid RuntimeError in inference_mode (PyTorch 2.0+)
+        x = x.clamp(0.0, 1.0)
 
     return x
 
@@ -171,30 +179,67 @@ def postprocess_dfine(outputs: dict,
 
     # DETR-like
     if "pred_logits" in outputs and "pred_boxes" in outputs:
-        logits: torch.Tensor = outputs["pred_logits"]  # (N,C)
-        boxes: torch.Tensor = outputs["pred_boxes"]    # (N,4) (souvent cxcywh normalisé)
+        logits: torch.Tensor = outputs["pred_logits"]  # (N,C) or (B,N,C)
+        boxes: torch.Tensor = outputs["pred_boxes"]    # (N,4) or (B,N,4) (cxcywh normalisé 0..1)
+        
+        # Handle batch dimension if present
+        if logits.ndim == 3:
+            # (B, N, C) -> squeeze batch if B=1
+            if logits.shape[0] == 1:
+                logits = logits.squeeze(0)  # (N, C)
+                boxes = boxes.squeeze(0) if boxes.ndim == 3 else boxes  # (N, 4)
+            else:
+                raise ValueError(f"Batch size > 1 non supporté: {tuple(logits.shape)}")
+        
         if logits.ndim == 2:
-            # score = max sigmoid(logits) par instance
-            scores = torch.sigmoid(logits).amax(dim=1)  # (N,)
+            # Compute scores from logits
+            # For single-class detection (num_classes=1), logits might be (N, 2) with [class_score, no_object_score]
+            # For multi-class, logits is (N, C+1) with last being no-object
+            
+            if logits.shape[-1] == 2:
+                # Binary classification: class vs no-object
+                # Use sigmoid on first logit (class score)
+                scores = torch.sigmoid(logits[:, 0])  # (N,)
+                labels = torch.zeros(scores.shape[0], dtype=torch.long, device=scores.device)
+            elif logits.shape[-1] > 2:
+                # Multi-class: exclude no-object class (last one) and get max
+                probs = logits.softmax(-1)[..., :-1]  # (N, C) - exclude last class
+                if probs.shape[-1] == 0:
+                    # All classes were excluded (shouldn't happen but handle gracefully)
+                    return None, 0.0
+                scores, labels = probs.max(-1)  # (N,) - max score per detection
+            else:
+                # Single logit per detection (uncommon but handle it)
+                scores = torch.sigmoid(logits.squeeze(-1))
+                labels = torch.zeros(scores.shape[0], dtype=torch.long, device=scores.device)
         else:
             raise ValueError(f"pred_logits shape inattendue: {tuple(logits.shape)}")
 
         if scores.numel() == 0:
             return None, 0.0
+        
         idx: int = int(torch.argmax(scores))
         conf = float(scores[idx].detach().item())
         if conf < conf_thresh:
             return None, conf
 
-        b = boxes[idx].detach()
-        # Heuristique de format : si <=1.5 → considéré comme normalisé (cxcywh)
-        if torch.max(b) <= 1.5:
-            box_xyxy = _cxcywh_norm_to_xyxy_abs(b, W, H)
-        else:
-            # Sinon on suppose xywh absolu (fallback générique)
-            box_xyxy = _xywh_to_xyxy_xy_abs(b)
-
-        _clip_xyxy_inplace(box_xyxy, W, H)
+        # Convert normalized [cx, cy, w, h] to XYXY pixels
+        b = boxes[idx].detach()  # [cx, cy, w, h] in range [0, 1]
+        
+        # Scale to image dimensions
+        scale = torch.tensor([W, H, W, H], device=b.device, dtype=b.dtype)
+        xywh = b * scale  # [cx_px, cy_px, w_px, h_px]
+        
+        # Convert center+size to corners
+        cx, cy, w, h = xywh.unbind(-1)
+        x1 = cx - w / 2.0
+        y1 = cy - h / 2.0
+        x2 = cx + w / 2.0
+        y2 = cy + h / 2.0
+        box_xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+        
+        # Clamp to image boundaries
+        box_xyxy = _clip_xyxy_inplace(box_xyxy, W, H)
         return box_xyxy.to(dtype=torch.float32).cpu().numpy(), conf
 
     # Si format non reconnu

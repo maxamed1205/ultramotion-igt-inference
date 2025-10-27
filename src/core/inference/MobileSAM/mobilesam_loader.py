@@ -3,13 +3,16 @@ import sys
 
 # ✅ S'assure que le dossier parent (contenant mobile_sam/) est visible
 CURRENT_DIR = os.path.dirname(__file__)
-PARENT_DIR = os.path.dirname(CURRENT_DIR)
-if PARENT_DIR not in sys.path:
-    sys.path.insert(0, PARENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
 
 
 import torch
-from mobile_sam.Modeling import Sam, TinyViT, PromptEncoder, MaskDecoder, TwoWayTransformer
+from mobile_sam.Modeling.sam import Sam
+from mobile_sam.Modeling.tiny_vit_sam import TinyViT
+from mobile_sam.Modeling.prompt_encoder import PromptEncoder
+from mobile_sam.Modeling.mask_decoder import MaskDecoder
+from mobile_sam.utils.transformer import TwoWayTransformer
 
 def build_mobilesam_model(checkpoint: str | None = None) -> torch.nn.Module:
     """Construit le modèle MobileSAM tiny (vit_t) et charge les poids depuis checkpoint."""
