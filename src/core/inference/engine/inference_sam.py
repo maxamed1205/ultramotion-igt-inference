@@ -11,21 +11,7 @@ LOG = logging.getLogger("igt.inference")
 
 
 def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.ndarray] = None) -> Optional[np.ndarray]:
-    """Exécute MobileSAM sur l'image complète avec une bbox et retourne le mask binaire.
-
-    Args:
-        sam_model: SamPredictor instance wrapping the MobileSAM model
-        image: Image complète uint8 RGB (H, W, 3) dans le même repère que la bbox
-        bbox_xyxy: Bounding box au format [x1, y1, x2, y2] en pixels de l'image (optional)
-    
-    Returns:
-        Binary mask (H, W) numpy array or None
-    
-    Uses AMP autocast (fp16) when CUDA is available. Safely handles CPU-only
-    environments by returning None and logging a warning.
-    
-    Note: Si bbox_xyxy est None, cette fonction tombera en mode legacy (ROI).
-    """
+    """Exécute MobileSAM sur l'image complète avec une bbox et retourne le mask binaire."""
     if sam_model is None or image is None:
         return None
 
@@ -33,27 +19,23 @@ def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.n
         LOG.warning("torch unavailable; skipping segmentation")
         return None
 
-    # Check if we have a SamPredictor instance (new API) or raw model (legacy)
     has_predictor_api = hasattr(sam_model, 'set_image') and hasattr(sam_model, 'predict')
-    
-    # NEW API: Use SamPredictor with full image + bbox
+
+    # --- MODE AVEC PREDICTOR ---
     if has_predictor_api and bbox_xyxy is not None:
         try:
-            # Ensure image is uint8 RGB
+            # 🔹 Conversion image
             if image.dtype != np.uint8:
                 image_uint8 = (np.clip(image, 0, 1) * 255).astype(np.uint8) if image.max() <= 1.0 else image.astype(np.uint8)
             else:
                 image_uint8 = image
-            
-            # Ensure RGB (convert grayscale if needed)
+
             if image_uint8.ndim == 2:
                 image_uint8 = np.stack([image_uint8] * 3, axis=-1)
             elif image_uint8.shape[-1] == 1:
                 image_uint8 = np.repeat(image_uint8, 3, axis=-1)
-            
-            # Check model dtype and handle FP16 models
-            # The issue: SamPredictor creates FP32 tensors, but if model is FP16, we get dtype mismatch
-            # Solution: Wrap set_image/predict with autocast to ensure dtype consistency
+
+            # 🔹 Type du modèle
             try:
                 model = getattr(sam_model, 'model', sam_model)
                 model_dtype = next(model.parameters()).dtype
@@ -64,51 +46,47 @@ def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.n
                 use_fp16 = False
                 device_type = "cuda" if torch.cuda.is_available() else "cpu"
                 LOG.debug(f"Could not detect SAM dtype: {e}, defaulting to FP32")
-            
-            # Set the image (computes embeddings) with appropriate autocast
-            if use_fp16 and device_type == "cuda":
-                # Use autocast for FP16 models
-                with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
-                    sam_model.set_image(image_uint8)
-            else:
-                sam_model.set_image(image_uint8)
-            
-            # Prepare bbox: ensure it's in the right format [x1, y1, x2, y2]
+
+            # --- [SAM PROMPT MODE] Full image + bbox ---
             bbox_np = np.array(bbox_xyxy, dtype=np.float32).flatten()
             if bbox_np.size != 4:
                 LOG.warning("Invalid bbox shape: %s, falling back to legacy mode", bbox_np.shape)
                 return _run_segmentation_legacy(sam_model, image)
-            
-            # Predict with bbox prompt (also under autocast if FP16)
+
+            LOG.debug(f"[SAM DEBUG] Received bbox_xyxy={bbox_np}")
+
+            # 🔹 Embedding complet
             if use_fp16 and device_type == "cuda":
                 with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
-                    masks, scores, _ = sam_model.predict(
-                        box=bbox_np,
-                        multimask_output=False
-                    )
+                    sam_model.set_image(image_uint8)
             else:
-                masks, scores, _ = sam_model.predict(
-                    box=bbox_np,
-                    multimask_output=False
-                )
-            
-            # Extract the first (and only) mask
+                sam_model.set_image(image_uint8)
+
+            LOG.debug(f"[SAM DEBUG] Image embedding set on full image {image_uint8.shape}")
+
+            # 🔹 Prédiction avec bbox
+            if use_fp16 and device_type == "cuda":
+                with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                    masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False)
+            else:
+                masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False)
+
+            # --- Résultat ---
             if masks is not None and len(masks) > 0:
-                mask = masks[0]  # (H, W)
+                mask = masks[0]
                 LOG.debug(f"SAM prediction successful: mask shape={mask.shape}, score={scores[0] if len(scores) > 0 else 'N/A'}")
                 return mask.astype(bool)
             else:
                 LOG.warning("SAM predict returned no masks")
                 return None
-                
+
         except Exception as e:
             LOG.exception("SAM segmentation with predictor API failed: %s", e)
             return None
-    
-    # LEGACY API: Direct model call with ROI (fallback for compatibility)
-    else:
-        LOG.debug("Using legacy SAM inference (no bbox or no predictor API)")
-        return _run_segmentation_legacy(sam_model, image)
+
+    # --- LEGACY MODE ---
+    LOG.debug("Using legacy SAM inference (no bbox or no predictor API)")
+    return _run_segmentation_legacy(sam_model, image)
 
 
 def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray) -> Optional[np.ndarray]:

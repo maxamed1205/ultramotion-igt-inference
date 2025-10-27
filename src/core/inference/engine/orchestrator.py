@@ -157,6 +157,7 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         # 4) Run MobileSAM with full image + bbox (new predictor API)
         try:
+            LOG.debug(f"[MASK DEBUG] Calling run_segmentation with bbox={bbox_t}")
             mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t)
         except Exception as e:
             LOG.exception("SAM segmentation failed: %s", e)

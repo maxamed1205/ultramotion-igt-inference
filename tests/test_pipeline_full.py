@@ -129,42 +129,16 @@ def test_pipeline_end_to_end():
     
     # Image de droite: avec mask de segmentation
     # Le mask est dans les coordonnées de la ROI, il faut le replacer sur l'image complète
+# --- Mask global directement ---
     axes[2].imshow(image)
-    if mask is not None and bbox is not None:
-        # Créer un mask complet de la taille de l'image
-        full_mask = np.zeros((640, 640), dtype=bool)
-        
-        # Replacer le mask dans la bbox
-        mask_h, mask_w = mask.shape
-        # Redimensionner le mask si nécessaire pour correspondre à la bbox
-        if mask_h != height or mask_w != width:
-            from scipy.ndimage import zoom
-            scale_y = height / mask_h
-            scale_x = width / mask_w
-            mask_resized = zoom(mask.astype(float), (scale_y, scale_x), order=1) > 0.5
-        else:
-            mask_resized = mask
-        
-        # Placer le mask redimensionné dans la bbox de l'image complète
-        y1_clip = max(0, y1)
-        y2_clip = min(640, y1 + mask_resized.shape[0])
-        x1_clip = max(0, x1)
-        x2_clip = min(640, x1 + mask_resized.shape[1])
-        
-        mask_y1 = 0 if y1 >= 0 else -y1
-        mask_y2 = mask_resized.shape[0] if y2 <= 640 else mask_resized.shape[0] - (y2 - 640)
-        mask_x1 = 0 if x1 >= 0 else -x1
-        mask_x2 = mask_resized.shape[1] if x2 <= 640 else mask_resized.shape[1] - (x2 - 640)
-        
-        full_mask[y1_clip:y2_clip, x1_clip:x2_clip] = mask_resized[mask_y1:mask_y2, mask_x1:mask_x2]
-        
-        # Créer un overlay semi-transparent pour le mask
+    if mask is not None:
         mask_overlay = np.zeros((640, 640, 4))
-        mask_overlay[full_mask] = [0, 1, 0, 0.6]  # Vert semi-transparent
+        mask_overlay[mask.astype(bool)] = [0, 1, 0, 0.6]  # vert semi-transparent
         axes[2].imshow(mask_overlay)
-    
-    axes[2].set_title(f"Segmentation MobileSAM\nMask ROI: {mask.shape if mask is not None else 'N/A'}", fontsize=12)
+
+    axes[2].set_title(f"Segmentation MobileSAM\nMask global: {mask.shape}", fontsize=12)
     axes[2].axis('off')
+
     
     plt.tight_layout()
     output_path = os.path.join(ROOT, "test_pipeline_result.png")
