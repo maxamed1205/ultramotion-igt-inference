@@ -813,23 +813,6 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 </div>
             </div>
             
-            <!-- Latencies Card (anciennes) -->
-            <div class="card">
-                <h2>⏱️ Latences Inter-Étapes (Legacy)</h2>
-                <div class="metric">
-                    <span class="metric-label">RX → PROC (avg/last ms)</span>
-                    <span id="lat-rxproc" class="metric-value">0.0 / 0.0</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">PROC → TX (avg/last ms)</span>
-                    <span id="lat-proctx" class="metric-value">0.0 / 0.0</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">RX → TX total (avg/last ms)</span>
-                    <span id="lat-rxtx" class="metric-value">0.0 / 0.0</span>
-                </div>
-            </div>
-            
             <!-- 🎯 Nouvelles Métriques Inter-Étapes Détaillées -->
             <div class="card">
                 <h2>🎯 Pipeline GPU-Résident (Phase 3)</h2>
@@ -914,9 +897,7 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
         <!-- Charts -->
         <div id="chart-container">
             <div id="fps-chart" style="height: 300px;"></div>
-            <div id="latency-chart" style="height: 300px; margin-top: 20px;"></div>
             <div id="gpu-transfer-chart" style="height: 350px; margin-top: 20px;"></div>
-            <div id="latency-per-frame-chart" style="height: 400px; margin-top: 20px;"></div>
             <div id="interstage-chart" style="height: 400px; margin-top: 20px;"></div>
         </div>
         
@@ -932,7 +913,6 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
         const timestamps = [];
         const fpsInData = [];
         const fpsOutData = [];
-        const latencyData = [];
         const gpuUtilData = [];
         
         // Initialize charts
@@ -944,26 +924,11 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             margin: {{ t: 40, r: 20, b: 40, l: 50 }}
         }};
         
-        const latencyLayout = {{
-            title: 'Latence Pipeline RX→TX (ms)',
-            xaxis: {{ title: 'Temps' }},
-            yaxis: {{ title: 'Latence (ms)' }},
-            margin: {{ t: 40, r: 20, b: 40, l: 50 }}
-        }};
-        
         const gpuTransferLayout = {{
             title: 'GPU Transfer - Décomposition par Frame (Norm / Pin / Copy)',
             xaxis: {{ title: 'Numéro de Frame' }},
             yaxis: {{ title: 'Latence (ms)', rangemode: 'tozero' }},
             barmode: 'stack',
-            margin: {{ t: 40, r: 20, b: 40, l: 50 }},
-            showlegend: true
-        }};
-        
-        const latencyPerFrameLayout = {{
-            title: 'Latences Inter-Étapes par Frame',
-            xaxis: {{ title: 'Numéro de Frame' }},
-            yaxis: {{ title: 'Latence (ms)', rangemode: 'tozero' }},
             margin: {{ t: 40, r: 20, b: 40, l: 50 }},
             showlegend: true
         }};
@@ -985,9 +950,7 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
         }};
         
         Plotly.newPlot('fps-chart', [], fpsLayout);
-        Plotly.newPlot('latency-chart', [], latencyLayout);
         Plotly.newPlot('gpu-transfer-chart', [], gpuTransferLayout);
-        Plotly.newPlot('latency-per-frame-chart', [], latencyPerFrameLayout);
         Plotly.newPlot('interstage-chart', [], interstageLayout);
         
         ws.onmessage = function(event) {{
@@ -1010,14 +973,6 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             document.getElementById('tx-info').textContent = 
                 `${{data.last_frame_tx || 0}} / ${{(data.fps_tx || 0).toFixed(1)}}`;
             document.getElementById('sync-txproc').textContent = (data.sync_txproc || 0).toFixed(1);
-            
-            // Latencies (Legacy)
-            document.getElementById('lat-rxproc').textContent = 
-                `${{(data.latency_rxproc_avg || 0).toFixed(1)}} / ${{(data.latency_rxproc_last || 0).toFixed(1)}}`;
-            document.getElementById('lat-proctx').textContent = 
-                `${{(data.latency_proctx_avg || 0).toFixed(1)}} / ${{(data.latency_proctx_last || 0).toFixed(1)}}`;
-            document.getElementById('lat-rxtx').textContent = 
-                `${{(data.latency_rxtx_avg || 0).toFixed(1)}} / ${{(data.latency_rxtx_last || 0).toFixed(1)}}`;
             
             // 🎯 Nouvelles Métriques Inter-Étapes Détaillées (Pipeline GPU-Résident)
             // 🔧 CORRECTIF: Filtrer les valeurs aberrantes (timestamps absolus)
@@ -1070,14 +1025,12 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             timestamps.push(timeLabel);
             fpsInData.push(data.fps_rx || data.fps_in);
             fpsOutData.push(data.fps_tx || data.fps_out);
-            latencyData.push(data.latency_rxtx_avg || data.latency_ms);
             gpuUtilData.push(data.gpu_util);
             
             if (timestamps.length > maxPoints) {{
                 timestamps.shift();
                 fpsInData.shift();
                 fpsOutData.shift();
-                latencyData.shift();
                 gpuUtilData.shift();
             }}
             
@@ -1086,12 +1039,6 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 {{ x: timestamps, y: fpsInData, name: 'FPS RX', type: 'scatter', mode: 'lines+markers', line: {{ color: '#10b981' }} }},
                 {{ x: timestamps, y: fpsOutData, name: 'FPS TX', type: 'scatter', mode: 'lines+markers', line: {{ color: '#3b82f6' }} }}
             ], fpsLayout);
-            
-            // Latency chart
-            Plotly.react('latency-chart', [
-                {{ x: timestamps, y: latencyData, name: 'Latence RX→TX', type: 'scatter', mode: 'lines+markers', 
-                   line: {{ color: '#f59e0b' }}, fill: 'tozeroy' }}
-            ], latencyLayout);
             
             // GPU Transfer chart (stacked bar)
             if (data.gpu_transfer && data.gpu_transfer.frames && data.gpu_transfer.frames.length > 0) {{
@@ -1105,23 +1052,6 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                     {{ x: gpuFrames, y: pinMs, name: 'Pinned Memory', type: 'bar', marker: {{ color: '#3b82f6' }} }},
                     {{ x: gpuFrames, y: copyMs, name: 'Async Copy', type: 'bar', marker: {{ color: '#f59e0b' }} }}
                 ], gpuTransferLayout);
-            }}
-            
-            // Latency per frame chart
-            if (data.latency_details && data.latency_details.frames) {{
-                const frames = data.latency_details.frames;
-                const rxproc = data.latency_details.rxproc;
-                const proctx = data.latency_details.proctx;
-                const rxtx = data.latency_details.rxtx;
-                
-                Plotly.react('latency-per-frame-chart', [
-                    {{ x: frames, y: rxproc, name: 'RX → PROC', type: 'scatter', mode: 'lines+markers', 
-                       line: {{ color: '#10b981', width: 2 }}, marker: {{ size: 4 }} }},
-                    {{ x: frames, y: proctx, name: 'PROC → TX', type: 'scatter', mode: 'lines+markers', 
-                       line: {{ color: '#3b82f6', width: 2 }}, marker: {{ size: 4 }} }},
-                    {{ x: frames, y: rxtx, name: 'RX → TX (total)', type: 'scatter', mode: 'lines+markers', 
-                       line: {{ color: '#f59e0b', width: 2 }}, marker: {{ size: 4 }} }}
-                ], latencyPerFrameLayout);
             }}
             
             // 🎯 Nouveau graphique inter-étapes détaillé (Pipeline GPU-Résident)
