@@ -46,7 +46,8 @@ def run_slicer_server(
     port,
     stats_cb: Optional[Callable] = None,
     event_cb: Optional[Callable] = None,
-    tx_ready: Optional[Any] = None  # 🔬 OPTIMISATION : Event signalant qu'une frame est disponible dans outbox
+    tx_ready: Optional[Any] = None,  # 🔬 OPTIMISATION : Event signalant qu'une frame est disponible dans outbox
+    gateway_stats: Optional[Any] = None  # ✅ INSTRUMENTATION : GatewayStats pour mark_tx() (latency tracking)
 ) -> None:
     """Thread TX : serveur IGTLink pour Slicer.
 
@@ -55,6 +56,7 @@ def run_slicer_server(
     - Appelle stats_cb(fps) toutes les 2s si fourni.
     - Appelle event_cb('tx_client_connected', {...}) / ('tx_stopped', {...}) si fournis.
     - Si tx_ready est fourni, utilise wait() pour un réveil instantané au lieu de polling.
+    - Si gateway_stats est fourni, appelle mark_tx(frame_id, ts) pour calcul de latence.
     """
     print("[DEBUG] run_slicer_server() started")
     LOG.info("[TX-SIM] run_slicer_server() started — debug check")
@@ -132,6 +134,13 @@ def run_slicer_server(
                 
                 # 🔬 INSTRUMENTATION : Timestamp APRÈS envoi
                 t_after_send = time.time()
+                
+                # ✅ LATENCY TRACKING : Enregistrer timestamp TX pour calcul RX→TX latency
+                if gateway_stats is not None and meta and "frame_id" in meta:
+                    try:
+                        gateway_stats.mark_tx(int(meta["frame_id"]), t_after_send)
+                    except Exception:
+                        pass  # Ignorer erreurs de tracking (non-critique)
                 
                 # 🔬 LOG avec détails de timing
                 t_read = (t_after_read - t_start) * 1000  # ms

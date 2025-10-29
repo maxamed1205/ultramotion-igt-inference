@@ -239,6 +239,12 @@ class MetricsCollector:
             rx_t, proc_t, tx_t = {}, {}, {}
             ts_pattern = re.compile(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}),(\d{3})\]")
             
+            # ✅ REGEX ROBUSTES : Fonctionnent avec n'importe quel nom de thread
+            # Patterns génériques pour RX, PROC (ou future DFINE/MobileSAM), et TX
+            rx_pattern = re.compile(r"\b(RX|DATASET-RX)\b.*?frame [#—](\d+)", re.IGNORECASE)
+            proc_pattern = re.compile(r"\b(PROC|Processing|DFINE|MobileSAM|Inference)\b.*?frame [#—](\d+)", re.IGNORECASE)
+            tx_pattern = re.compile(r"\b(TX|Sent|Send)\b.*?frame [#—](\d+)", re.IGNORECASE)
+            
             for line in lines:
                 t_match = ts_pattern.search(line)
                 ts = None
@@ -248,32 +254,31 @@ class MetricsCollector:
                         + int(t_match.group(3)) / 1000
                     )
                 
-                # RX - chercher "Generated frame #XXX" ou "Generated frame —XXX"
-                if "[RX-SIM]" in line and "Generated frame" in line:
-                    m = re.search(r"frame [#—](\d+)", line)
-                    if m:
-                        fid = int(m.group(1))
-                        rx.append(fid)
-                        if ts:
-                            rx_t[fid] = ts
+                # RX - détection générique (RX, DATASET-RX, etc.)
+                m = rx_pattern.search(line)
+                if m:
+                    fid = int(m.group(2))  # group(1) = nom thread, group(2) = frame_id
+                    rx.append(fid)
+                    if ts:
+                        rx_t[fid] = ts
+                    continue  # Évite double-matching
                 
-                # PROC - chercher "Processing frame #XXX" ou "Processing frame —XXX"
-                elif "[PROC-SIM]" in line and "Processing frame" in line:
-                    m = re.search(r"frame [#—](\d+)", line)
-                    if m:
-                        fid = int(m.group(1))
-                        proc.append(fid)
-                        if ts:
-                            proc_t[fid] = ts
+                # PROC - détection générique (PROC-SIM, Processing, DFINE, MobileSAM, etc.)
+                m = proc_pattern.search(line)
+                if m:
+                    fid = int(m.group(2))
+                    proc.append(fid)
+                    if ts:
+                        proc_t[fid] = ts
+                    continue
                 
-                # TX - chercher "Sent frame #XXX" ou "Sent frame —XXX"
-                elif "[TX-SIM]" in line and "Sent frame" in line:
-                    m = re.search(r"frame [#—](\d+)", line)
-                    if m:
-                        fid = int(m.group(1))
-                        tx.append(fid)
-                        if ts:
-                            tx_t[fid] = ts
+                # TX - détection générique (TX-SIM, Sent frame, etc.)
+                m = tx_pattern.search(line)
+                if m:
+                    fid = int(m.group(2))
+                    tx.append(fid)
+                    if ts:
+                        tx_t[fid] = ts
             
             # Calcul des FPS
             fps_rx = self._fps_from_timestamps(rx_t)

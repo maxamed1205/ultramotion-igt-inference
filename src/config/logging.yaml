@@ -115,6 +115,16 @@ loggers:
     handlers: [console]
     propagate: no
 
+  igt.gateway.stats:  # statistiques gateway (latences RX→TX)
+    level: DEBUG  # ✅ ACTIVER DEBUG pour voir les logs mark_rx/mark_tx
+    handlers: [console]
+    propagate: no
+
+  igt.gateway.test:  # tests gateway (dataset mock, etc.)
+    level: DEBUG  # ✅ ACTIVER DEBUG pour voir tous les détails du test
+    handlers: [console]
+    propagate: no
+
 # ─────────────────────────────────────────────────────────────
 # LOGGER RACINE
 # ─────────────────────────────────────────────────────────────
