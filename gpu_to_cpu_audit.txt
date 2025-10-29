@@ -157,32 +157,50 @@
 🟡 Medium (Review) src\core\inference\MobileSAM\mobile_sam\automatic_mask_generator.py:190 [item]
    "stability_score": mask_data["stability_score"][idx].item(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:190 [cpu]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:195 [cpu]
    m.detach().cpu().numpy(),
 
-🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:190 [numpy]
+🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:195 [numpy]
    m.detach().cpu().numpy(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:190 [detach]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:195 [detach]
    m.detach().cpu().numpy(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:191 [cpu]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:196 [cpu]
    iou.detach().cpu().numpy(),
 
-🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:191 [numpy]
+🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:196 [numpy]
    iou.detach().cpu().numpy(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:191 [detach]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:196 [detach]
    iou.detach().cpu().numpy(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:192 [cpu]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:197 [cpu]
    low.detach().cpu().numpy(),
 
-🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:192 [numpy]
+🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:197 [numpy]
    low.detach().cpu().numpy(),
 
-🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:192 [detach]
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:197 [detach]
    low.detach().cpu().numpy(),
+
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:202 [cpu]
+   m.detach().cpu().numpy(),
+
+🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:202 [numpy]
+   m.detach().cpu().numpy(),
+
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:202 [detach]
+   m.detach().cpu().numpy(),
+
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:203 [cpu]
+   iou.detach().cpu().numpy(),
+
+🟠 Medium (Minor) src\core\inference\MobileSAM\mobile_sam\predictor.py:203 [numpy]
+   iou.detach().cpu().numpy(),
+
+🔴 Critical (Combined) src\core\inference\MobileSAM\mobile_sam\predictor.py:203 [detach]
+   iou.detach().cpu().numpy(),
 
 🟡 Medium (Review) src\core\inference\MobileSAM\mobile_sam\Modeling\tiny_vit_sam.py:496 [item]
    dpr = [x.item() for x in torch.linspace(0, drop_path_rate,

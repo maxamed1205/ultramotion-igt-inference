@@ -34,6 +34,10 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
     Returns:
         dictionnaire prêt pour visibility_fsm.evaluate_visibility().
     """
+    # Garde contre mode legacy non intentionnel
+    if sam_as_numpy:
+        LOG.warning("SAM running in legacy CPU mode (as_numpy=True)")
+    
     # Stable output shape required by the pipeline
     out: Dict[str, Any] = {
         "state_hint": "LOST",
@@ -55,29 +59,55 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         LOG.debug("Starting prepare_inference_inputs: tau_conf=%s frame_shape=%s", tau_conf, getattr(frame_t, "shape", None))
 
-        # 1) Run D-FINE to obtain bbox and confidence
+        # 1) Run D-FINE to obtain bbox and confidence (GPU-resident mode)
         try:
-            bbox_t, conf_t = run_detection(dfine_model, frame_t)
+            bbox_t, conf_t = run_detection(
+                dfine_model, 
+                frame_t,
+                allow_cpu_fallback=False,    # Mode strict GPU-resident
+                return_gpu_tensor=True,      # Garde tenseurs sur GPU
+                stream=None,                 # Use default stream
+                conf_thresh=tau_conf         # Pass threshold directly
+            )
         except Exception as e:
             LOG.exception("D-FINE detection failed: %s", e)
             out.update({"state_hint": "LOST", "conf": 0.0})
             return out
 
         out["bbox"] = bbox_t
-        out["conf"] = float(conf_t) if conf_t is not None else 0.0
+        # Conversion GPU→CPU seulement pour scalar conf si nécessaire
+        if hasattr(conf_t, 'item'):
+            conf_scalar = float(conf_t.item())  # Sync GPU→CPU pour scalar uniquement
+        else:
+            conf_scalar = float(conf_t) if conf_t is not None else 0.0
+        out["conf"] = conf_scalar
 
-        if bbox_t is None or (conf_t is None) or (conf_t < tau_conf):
-            LOG.debug("DFINE result: no bbox or below threshold (conf=%s, tau=%s). state=LOST", conf_t, tau_conf)
+        if bbox_t is None or (conf_t is None) or (conf_scalar < tau_conf):
+            LOG.debug("DFINE result: no bbox or below threshold (conf=%s, tau=%s). state=LOST", conf_scalar, tau_conf)
             out["state_hint"] = "LOST"
             return out
 
-        # 2) Convert bbox to integer pixel coordinates (x1,y1,x2,y2)
+        # 2) Convert bbox to integer pixel coordinates (x1,y1,x2,y2) - GPU-resident
         try:
-            b = np.array(bbox_t, dtype=np.float32).flatten()
-            if b.size != 4:
+            # Assure que bbox_t est un tensor GPU
+            if isinstance(bbox_t, torch.Tensor):
+                if not bbox_t.is_cuda:
+                    bbox_t = bbox_t.cuda()  # Move to GPU if needed
+                b = bbox_t.flatten()  # Reste sur GPU
+            else:
+                # Legacy numpy array → convertir en tensor GPU
+                b = torch.as_tensor(bbox_t, dtype=torch.float32, device="cuda").flatten()
+                bbox_t = b.view(4)  # Update bbox_t to be GPU tensor
+                
+            if b.numel() != 4:
                 raise ValueError("bbox must have 4 elements")
-            x1, y1, x2, y2 = int(b[0]), int(b[1]), int(b[2]), int(b[3])
-            LOG.debug("DFINE bbox coordinates: x1=%d, y1=%d, x2=%d, y2=%d (conf=%.3f)", x1, y1, x2, y2, conf_t)
+            
+            # Extraction minimale CPU seulement pour logs (4 scalars)
+            x1, y1, x2, y2 = [int(v) for v in b.tolist()]  # Sync ponctuelle pour scalars
+            LOG.debug("DFINE bbox coordinates: x1=%d, y1=%d, x2=%d, y2=%d (conf=%.3f)", x1, y1, x2, y2, conf_scalar)
+            
+            # KPI monitoring device
+            LOG.debug(f"bbox_device={bbox_t.device}, bbox_dtype={bbox_t.dtype}, conf={conf_scalar:.3f}")
         except Exception as e:
             LOG.exception("Invalid bbox format from DFINE: %s", e)
             out["state_hint"] = "LOST"
@@ -192,21 +222,40 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         # 4) Run MobileSAM with full image + bbox (new predictor API)
         try:
-            # Instrumentation KPI pour debug visuel
+            # KPI avant SAM - monitoring GPU continuity
             try:
                 from core.monitoring.kpi import safe_log_kpi, format_kpi
                 safe_log_kpi(format_kpi({
                     "ts": time.time(),
-                    "event": "prepare_inference_inputs",
-                    "sam_as_numpy": int(sam_as_numpy),
-                    "tensor_type": str(type(full_image)),
-                    "device": str(getattr(full_image, "device", "cpu")),
+                    "event": "sam_call_start",
+                    "bbox_device": str(bbox_t.device if hasattr(bbox_t, 'device') else "cpu"),
+                    "image_device": str(getattr(full_image, "device", "cpu")),
+                    "sam_as_numpy": int(sam_as_numpy)
+                }))
+            except Exception:
+                pass
+            
+            # Vérification GPU avant appel SAM
+            if not isinstance(bbox_t, torch.Tensor) or not bbox_t.is_cuda:
+                LOG.warning("Converting bbox to GPU tensor for SAM")
+                bbox_t = torch.as_tensor(bbox_t, device="cuda", dtype=torch.float32)
+                
+            LOG.debug(f"SAM receives bbox tensor on {bbox_t.device}, dtype={bbox_t.dtype}")
+            LOG.debug(f"[MASK DEBUG] Calling run_segmentation with bbox={bbox_t}")
+            
+            mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t, as_numpy=sam_as_numpy)
+            
+            # KPI après SAM - monitoring résultat  
+            try:
+                safe_log_kpi(format_kpi({
+                    "ts": time.time(),
+                    "event": "sam_call_end",
+                    "mask_device": str(getattr(mask, "device", "cpu")),
+                    "mask_type": str(type(mask))
                 }))
             except Exception:
                 pass
                 
-            LOG.debug(f"[MASK DEBUG] Calling run_segmentation with bbox={bbox_t}")
-            mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t, as_numpy=sam_as_numpy)
         except Exception as e:
             LOG.exception("SAM segmentation failed: %s", e)
             mask = None
@@ -220,6 +269,14 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         # 5) Compute spatial weights
         try:
+            # KPI device monitoring pour diagnostic
+            try:
+                LOG_KPI.info(f"Mask converted to CPU for compute_mask_weights (device={getattr(mask, 'device', 'cpu')})")
+            except Exception:
+                pass
+                
+            # ⚠️ TODO Phase 2 : porter compute_mask_weights() sur GPU (torch ops)
+            # Cela supprimera ce dernier transfert CPU.
             # Normalize mask to binary float array
             mask_arr = np.array(mask)
             mask_bin = (mask_arr > 0.5).astype(np.uint8)

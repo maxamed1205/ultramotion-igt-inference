@@ -1,42 +1,42 @@
 {
   "summary": {
-    "total_transfers": 68,
+    "total_transfers": 86,
     "critical_count": 0,
-    "medium_count": 16,
-    "low_count": 52,
-    "chains_detected": 36
+    "medium_count": 21,
+    "low_count": 65,
+    "chains_detected": 49
   },
   "severity_breakdown": {
     "critical": 0,
-    "medium": 16,
-    "low": 52
+    "medium": 21,
+    "low": 65
   },
   "transfer_types": {
-    "detach": 27,
-    "item": 12,
-    "cpu": 14,
-    "numpy": 13,
+    "detach": 30,
+    "item": 19,
+    "cpu": 19,
+    "numpy": 16,
     "to_cpu": 2
   },
   "top_problematic_files": [
     [
+      "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      15
+    ],
+    [
       "src\\core\\inference\\dfine_infer.py",
-      11
+      13
     ],
     [
       "src\\core\\inference\\d_fine\\dfine_criterion.py",
       11
     ],
     [
-      "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
-      9
+      "src\\core\\inference\\d_fine\\matcher.py",
+      8
     ],
     [
       "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
-      6
-    ],
-    [
-      "tests\\test_dfine_single_infer.py",
       6
     ]
   ],

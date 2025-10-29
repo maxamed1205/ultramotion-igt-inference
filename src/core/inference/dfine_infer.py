@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import time
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -116,11 +116,13 @@ def preprocess_frame_for_dfine(frame_gpu: torch.Tensor) -> torch.Tensor:
 @torch.inference_mode()
 def infer_dfine(model: torch.nn.Module,
                 frame_mono: torch.Tensor,
-                stream: Optional[torch.cuda.Stream] = None) -> dict:
+                stream: Optional[torch.cuda.Stream] = None,
+                allow_cpu_fallback: bool = False) -> dict:
     """Exécute le forward D-FINE sur GPU de manière non-bloquante (côté CPU).
     - Respecte le stream fourni (overlap CPU↔GPU).
     - Active l'autocast FP16 si ENABLE_FP16.
     - Pas de synchronize() ici; la synchro arrive quand on lit les scalars en post-process.
+    - allow_cpu_fallback: Si True, permet fallback CPU en cas d'OOM (par défaut False)
     """
     if stream is None:
         stream = torch.cuda.current_stream()
@@ -137,15 +139,32 @@ def infer_dfine(model: torch.nn.Module,
         return outputs
 
     except torch.cuda.OutOfMemoryError:
-        LOG.warning("D-FINE OOM sur GPU → tentative fallback CPU (dégradé).")
-        try:
-            torch.cuda.empty_cache()
-        except Exception:
-            pass
-        frame_cpu = frame_mono.detach().to("cpu", non_blocking=False)
-        # En CPU, pas d’autocast
-        outputs = model(frame_cpu)
-        return outputs
+        if allow_cpu_fallback:
+            LOG.warning("D-FINE OOM sur GPU → fallback CPU autorisé (mode dégradé).")
+            # KPI pour traçabilité
+            try:
+                LOG_KPI.info("event=dfine_fallback_cpu ts=%.3f flag=1", time.time())
+            except Exception:
+                pass
+            
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            
+            # Transfert GPU→CPU avec non_blocking=True pour éviter blocage complet
+            frame_cpu = frame_mono.detach().to("cpu", non_blocking=True)
+            # En CPU, pas d'autocast
+            outputs = model(frame_cpu)
+            return outputs
+        else:
+            # Mode GPU-resident strict: pas de fallback CPU silencieux
+            LOG.error("D-FINE OOM sur GPU - fallback CPU désactivé (allow_cpu_fallback=False)")
+            try:
+                LOG_KPI.info("event=dfine_oom_critical ts=%.3f flag=1", time.time())
+            except Exception:
+                pass
+            raise  # Relancer l'exception OOM
 
 
 # ============================================================
@@ -154,11 +173,18 @@ def infer_dfine(model: torch.nn.Module,
 
 def postprocess_dfine(outputs: dict,
                       img_size: Tuple[int, int],
-                      conf_thresh: float = 0.3) -> Tuple[Optional[np.ndarray], float]:
+                      conf_thresh: float = 0.3,
+                      return_gpu_tensor: bool = False) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
     """Extrait la bbox la plus confiante (bbox_t en xyxy absolu, conf_t).
     Supporte 2 conventions d'outputs :
       - Style DETR: outputs['pred_logits'] (N,C), outputs['pred_boxes'] (N,4) en cxcywh normalisé.
       - Style torchvision: outputs['scores'] (N,), outputs['boxes'] (N,4) en xyxy absolu.
+    
+    Args:
+        return_gpu_tensor: Si True, retourne torch.Tensor GPU au lieu de np.ndarray CPU
+    
+    Returns:
+        (bbox, conf) où bbox est Optional[np.ndarray] ou Optional[torch.Tensor] selon return_gpu_tensor
     """
     W, H = img_size  # img_size = (W, H)
 
@@ -170,12 +196,27 @@ def postprocess_dfine(outputs: dict,
         if scores.numel() == 0:
             return None, 0.0
         idx: int = int(torch.argmax(scores))
-        conf = float(scores[idx].detach().item())
-        if conf < conf_thresh:
-            return None, conf
+        conf_tensor = scores[idx]  # Garde le tensor GPU
+        # Conversion vers scalar seulement si pas en mode GPU tensor
+        if return_gpu_tensor:
+            conf = conf_tensor  # Retourne le tensor GPU
+        else:
+            conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy
+            
+        if return_gpu_tensor:
+            # Comparaison GPU-native sans synchronisation
+            if (conf_tensor < conf_thresh).item():  # Une seule sync pour le booléen
+                return None, conf
+        else:
+            if conf < conf_thresh:
+                return None, conf
         box_xyxy = boxes_xyxy[idx].detach()
         _clip_xyxy_inplace(box_xyxy, W, H)
-        return box_xyxy.to(dtype=torch.float32).cpu().numpy(), conf
+        box_xyxy_f32 = box_xyxy.to(dtype=torch.float32)
+        if return_gpu_tensor:
+            return box_xyxy_f32, conf
+        else:
+            return box_xyxy_f32.cpu().numpy(), conf
 
     # DETR-like
     if "pred_logits" in outputs and "pred_boxes" in outputs:
@@ -219,9 +260,20 @@ def postprocess_dfine(outputs: dict,
             return None, 0.0
         
         idx: int = int(torch.argmax(scores))
-        conf = float(scores[idx].detach().item())
-        if conf < conf_thresh:
-            return None, conf
+        conf_tensor = scores[idx]  # Garde le tensor GPU
+        # Conversion vers scalar seulement si pas en mode GPU tensor
+        if return_gpu_tensor:
+            conf = conf_tensor  # Retourne le tensor GPU
+        else:
+            conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy
+            
+        if return_gpu_tensor:
+            # Comparaison GPU-native sans synchronisation
+            if (conf_tensor < conf_thresh).item():  # Une seule sync pour le booléen
+                return None, conf
+        else:
+            if conf < conf_thresh:
+                return None, conf
 
         # Convert normalized [cx, cy, w, h] to XYXY pixels
         b = boxes[idx].detach()  # [cx, cy, w, h] in range [0, 1]
@@ -240,7 +292,11 @@ def postprocess_dfine(outputs: dict,
         
         # Clamp to image boundaries
         box_xyxy = _clip_xyxy_inplace(box_xyxy, W, H)
-        return box_xyxy.to(dtype=torch.float32).cpu().numpy(), conf
+        box_xyxy_f32 = box_xyxy.to(dtype=torch.float32)
+        if return_gpu_tensor:
+            return box_xyxy_f32, conf
+        else:
+            return box_xyxy_f32.cpu().numpy(), conf
 
     # Si format non reconnu
     LOG.error("Format d'outputs D-FINE non reconnu. Clés: %s", list(outputs.keys()))
@@ -254,15 +310,19 @@ def postprocess_dfine(outputs: dict,
 def run_dfine_detection(model: torch.nn.Module,
                         frame_gpu: torch.Tensor | Any,
                         stream: Optional[torch.cuda.Stream] = None,
-                        conf_thresh: float = 0.3) -> Tuple[Optional[np.ndarray], float]:
+                        conf_thresh: float = 0.3,
+                        allow_cpu_fallback: bool = False,
+                        return_gpu_tensor: bool = False) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
     """
     Pipeline complet : frame_gpu → preprocess → infer → postprocess
     Entrées :
         - model : module D-FINE déjà chargé/patché mono-canal.
         - frame_gpu : soit un torch.Tensor [1,1,H,W] (CUDA), soit un objet GpuFrame {tensor, stream}.
         - stream : stream CUDA cible pour l'inférence D-FINE (peut être distinct du stream de copy_async).
+        - allow_cpu_fallback : Si True, permet fallback CPU en cas d'OOM (par défaut False)
+        - return_gpu_tensor : Si True, retourne torch.Tensor GPU au lieu de np.ndarray CPU
     Sortie :
-        (bbox_t [x1,y1,x2,y2] en pixels, conf_t float)
+        (bbox_t [x1,y1,x2,y2] en pixels, conf_t float) où bbox_t peut être np.ndarray ou torch.Tensor
     """
     # Support GpuFrame (objet) ou tenseur direct
     in_tensor = getattr(frame_gpu, "tensor", frame_gpu)
@@ -296,10 +356,10 @@ def run_dfine_detection(model: torch.nn.Module,
     x = preprocess_frame_for_dfine(in_tensor)
 
     # Inférence (asynchrone côté CPU)
-    outputs = infer_dfine(model, x, stream=stream)
+    outputs = infer_dfine(model, x, stream=stream, allow_cpu_fallback=allow_cpu_fallback)
 
-    # Post-traitement (l’accès aux scalars déclenche la sync nécessaire)
-    bbox_t, conf_t = postprocess_dfine(outputs, img_size=(W, H), conf_thresh=conf_thresh)
+    # Post-traitement (l'accès aux scalars déclenche la sync nécessaire)
+    bbox_t, conf_t = postprocess_dfine(outputs, img_size=(W, H), conf_thresh=conf_thresh, return_gpu_tensor=return_gpu_tensor)
 
     # KPI minimal (non-bloquant – l’accès à conf_t a déjà synchronisé le strict nécessaire)
     t1 = time.time()
