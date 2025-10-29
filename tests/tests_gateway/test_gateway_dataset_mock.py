@@ -33,19 +33,28 @@ os.environ["LOG_MODE"] = "dev"  # dev=INFO/DEBUG, perf=WARNING
 import sys
 import time
 import threading
+import signal
 import numpy as np
 from pathlib import Path
 from PIL import Image
 import glob
 
-# ──────────────────────────────────────────────
-#  Correction console Windows : forcer UTF-8
-# ──────────────────────────────────────────────
-if sys.platform.startswith("win"):
-    import io
-    os.system("chcp 65001 >NUL")
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# ============================================================
+# 🔧 UTF-8 SAFE MODE FOR WINDOWS CONSOLE
+# (forces all logs and prints to use UTF-8 everywhere)
+# ============================================================
+import sys, io, os, locale
+
+# Force UTF-8 code page for subprocesses
+os.system("chcp 65001 >NUL")
+
+# Force Python's stdout/stderr to UTF-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+# Confirm current locale (for debug)
+print(f"[DEBUG] Console encoding: {sys.stdout.encoding}, locale: {locale.getpreferredencoding(False)}")
+
 
 # ──────────────────────────────────────────────
 #  Préparation du contexte
@@ -299,11 +308,11 @@ def simulate_processing(
             # RX → CPU-to-GPU → PROC(GPU) → GPU-to-CPU → TX
             # ═══════════════════════════════════════════════════════════════════
             
-            # t_rx déjà enregistré via mark_rx() dans simulate_rx()
-            t_rx = frame.meta.ts  # Timestamp RX original
+            # 🔧 CORRECTIF: Utiliser perf_counter() partout pour cohérence temporelle
+            t_rx_relative = time.perf_counter()  # Début du workflow (horloge relative cohérente)
             
             # ⏱️ Enregistrer début du workflow inter-étapes
-            gateway.stats.mark_interstage_rx(frame_id, t_rx)
+            gateway.stats.mark_interstage_rx(frame_id, t_rx_relative)
             
             if use_gpu:
                 try:
@@ -338,7 +347,7 @@ def simulate_processing(
                     # 📊 Log détaillé des métriques inter-étapes (toutes les 20 frames)
                     if frame_id % 20 == 0:
                         total_processing = cpu_to_gpu_ms + proc_gpu_ms + gpu_to_cpu_ms
-                        LOG.info(f"[PROC-SIM] 🎯 Inter-stage latencies #{frame_id:03d}:")
+                        LOG.info(f"[PROC-SIM]  Inter-stage latencies #{frame_id:03d}:")
                         LOG.info(f"  RX → CPU-to-GPU:    {rx_to_cpu_gpu:.2f}ms")
                         LOG.info(f"  CPU-to-GPU → PROC:  {cpu_gpu_to_proc:.2f}ms") 
                         LOG.info(f"  PROC → GPU-to-CPU:  {proc_to_gpu_cpu:.2f}ms")
@@ -354,7 +363,7 @@ def simulate_processing(
                                            avg_proc + 
                                            stats_snap.get('interstage_proc_to_gpu_cpu_ms', 0) + 
                                            stats_snap.get('interstage_gpu_cpu_to_tx_ms', 0))
-                                LOG.info(f"  📈 Moyennes cumulées ({interstage_samples} échantillons): PROC={avg_proc:.1f}ms, Total={avg_total:.1f}ms")
+                                LOG.info(f"  Moyennes cumulées ({interstage_samples} échantillons): PROC={avg_proc:.1f}ms, Total={avg_total:.1f}ms")
                         except Exception:
                             pass
                         
@@ -392,38 +401,46 @@ def simulate_processing(
 #  Lancement du Dashboard (optionnel)
 # ──────────────────────────────────────────────
 def start_dashboard_server(stop_event: threading.Event):
-    """Lance le dashboard FastAPI dans un thread séparé."""
+    """Lance le dashboard FastAPI dans un thread séparé - VERSION NON-BLOQUANTE."""
     try:
         import uvicorn
-        from service.dashboard_service import app
-        
-        LOG.info("📊 Dashboard démarré sur http://localhost:8050")
-        
-        # Configuration uvicorn
-        config = uvicorn.Config(
-            app,
-            host="0.0.0.0",
-            port=8050,
-            log_level="warning",  # Réduire verbosité
-            access_log=False,
-        )
-        server = uvicorn.Server(config)
-        
-        # Lancer jusqu'à stop_event
         import asyncio
+        # 🎯 CORRECTIF: Utiliser le dashboard unifié corrigé au lieu de l'ancien
+        from service.dashboard_unified import DashboardService, DashboardConfig
+        
+        LOG.info("🌐 Dashboard unifié démarré sur http://localhost:8050")
+        
+        # Configuration du dashboard unifié
+        config = DashboardConfig(
+            port=8050,
+            host="0.0.0.0", 
+            update_interval=1.0
+        )
+        
+        dashboard_service = DashboardService(config)
+        
+        # 🎯 CORRECTIF: Lancer uvicorn de manière non-bloquante
+        # Au lieu de dashboard_service.start() qui bloque, on utilise uvicorn.Server
+        
+        # Démarrer le thread de collecte de métriques
+        dashboard_service.collector_thread.start()
+        
+        # Configuration uvicorn pour mode non-bloquant
+        server_config = uvicorn.Config(
+            app=dashboard_service.app,
+            host=config.host,
+            port=config.port,
+            log_level="warning"  # Réduire le spam de logs
+        )
+        
+        server = uvicorn.Server(server_config)
+        
+        # Lancer le serveur de manière non-bloquante
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Arrêt propre via stop_event
-        async def serve():
-            await server.serve()
-        
-        try:
-            loop.run_until_complete(serve())
-        except Exception as e:
-            LOG.debug(f"Dashboard stopped: {e}")
-        finally:
-            loop.close()
+        # Boucle jusqu'à stop_event
+        loop.run_until_complete(server.serve())
             
     except ImportError:
         LOG.warning("⚠️ Dashboard non disponible (uvicorn/fastapi manquants)")
@@ -508,7 +525,7 @@ if __name__ == "__main__":
     rx_thread = threading.Thread(
         target=read_dataset_images,
         args=(gateway, stop_event, frame_ready),
-        kwargs={"loop_mode": False},
+        kwargs={"loop_mode": True},  # 🔧 CORRECTIF: Boucle infinie pour dashboard persistant
         daemon=True,
         name="RX-Thread"
     )
@@ -544,20 +561,60 @@ if __name__ == "__main__":
     LOG.info("Tous les threads demarres !")
     LOG.info("=" * 80)
 
-    # Attendre que RX termine d'envoyer toutes les images
-    LOG.info("Attente de fin d'envoi des images...")
-    rx_thread.join()
+    # 🔧 Gestionnaire de signal pour arrêt propre
+    def signal_handler(signum, frame):
+        LOG.info(f"\n🛑 Signal {signum} reçu, arrêt en cours...")
+        stop_event.set()
     
-    # Laisser un peu de temps pour que PROC et TX terminent le traitement
-    LOG.info("RX termine. Attente traitement des dernieres frames...")
-    time.sleep(2.0)
+    # Enregistrer le gestionnaire de signal (Windows et Unix)
+    signal.signal(signal.SIGINT, signal_handler)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)
+
+    # 🔧 CORRECTIF: Boucle principale avec gestion Ctrl+C pour mode persistant
+    try:
+        LOG.info("🚀 Pipeline en cours... Ctrl+C pour arrêter")
+        LOG.info("📊 Dashboard disponible sur: http://localhost:8050")
+        
+        # Boucle infinie jusqu'à Ctrl+C
+        while True:
+            time.sleep(1.0)  # Check toutes les secondes
+            
+            # Vérifier si les threads sont encore vivants
+            if not rx_thread.is_alive():
+                LOG.warning("RX thread terminated unexpectedly")
+                break
+            if not proc_thread.is_alive():
+                LOG.warning("PROC thread terminated unexpectedly") 
+                break
+            if not tx_thread.is_alive():
+                LOG.warning("TX thread terminated unexpectedly")
+                break
+                
+    except KeyboardInterrupt:
+        LOG.info("\n🛑 Ctrl+C détecté, arrêt en cours...")
+    except Exception as e:
+        LOG.error(f"❌ Erreur inattendue: {e}")
 
     # Arrêt propre
-    LOG.info(">> Arret en cours...")
+    LOG.info(">> Arrêt en cours...")
     stop_event.set()
-    rx_thread.join(timeout=1.0)
-    proc_thread.join(timeout=1.0)
-    tx_thread.join(timeout=1.0)
+    
+    # Attendre les threads avec timeout
+    LOG.info("Arrêt RX thread...")
+    rx_thread.join(timeout=2.0)
+    if rx_thread.is_alive():
+        LOG.warning("RX thread ne s'est pas arrêté proprement")
+        
+    LOG.info("Arrêt PROC thread...")
+    proc_thread.join(timeout=2.0)
+    if proc_thread.is_alive():
+        LOG.warning("PROC thread ne s'est pas arrêté proprement")
+        
+    LOG.info("Arrêt TX thread...")
+    tx_thread.join(timeout=2.0)
+    if tx_thread.is_alive():
+        LOG.warning("TX thread ne s'est pas arrêté proprement")
 
     # Statistiques finales
     LOG.info("=" * 80)
@@ -570,7 +627,7 @@ if __name__ == "__main__":
         stats = gateway.stats.snapshot()
         
         # 📊 Statistiques générales
-        LOG.info(f"\n📊 STATISTIQUES GÉNÉRALES:")
+        LOG.info(f"\n STATISTIQUES GÉNÉRALES:")
         LOG.info(f"   RX FPS moyen: {stats.get('avg_fps_rx', 0):.1f}")
         LOG.info(f"   TX FPS moyen: {stats.get('avg_fps_tx', 0):.1f}")
         LOG.info(f"   Total bytes RX: {stats.get('bytes_rx', 0) / 1e6:.2f} MB")
@@ -579,7 +636,7 @@ if __name__ == "__main__":
         # 🎯 NOUVELLES MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES
         interstage_samples = stats.get('interstage_samples', 0)
         if interstage_samples > 0:
-            LOG.info(f"\n🎯 MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES ({interstage_samples} échantillons):")
+            LOG.info(f"\n MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES ({interstage_samples} échantillons):")
             LOG.info(f"   RX → CPU-to-GPU:    {stats.get('interstage_rx_to_cpu_gpu_ms', 0):.2f}ms (P95: {stats.get('interstage_rx_to_cpu_gpu_p95_ms', 0):.2f}ms)")
             LOG.info(f"   CPU-to-GPU → PROC:  {stats.get('interstage_cpu_gpu_to_proc_ms', 0):.2f}ms (P95: {stats.get('interstage_cpu_gpu_to_proc_p95_ms', 0):.2f}ms)")
             LOG.info(f"   PROC → GPU-to-CPU:  {stats.get('interstage_proc_to_gpu_cpu_ms', 0):.2f}ms (P95: {stats.get('interstage_proc_to_gpu_cpu_p95_ms', 0):.2f}ms)")
@@ -590,13 +647,13 @@ if __name__ == "__main__":
                                stats.get('interstage_cpu_gpu_to_proc_ms', 0) + 
                                stats.get('interstage_proc_to_gpu_cpu_ms', 0) + 
                                stats.get('interstage_gpu_cpu_to_tx_ms', 0))
-            LOG.info(f"   📈 Total inter-étapes: {total_interstage:.2f}ms")
+            LOG.info(f"    Total inter-étapes: {total_interstage:.2f}ms")
         else:
-            LOG.info(f"\n⚠️  AUCUNE MÉTRIQUE INTER-ÉTAPES (échantillons: {interstage_samples})")
+            LOG.info(f"\n AUCUNE MÉTRIQUE INTER-ÉTAPES (échantillons: {interstage_samples})")
             LOG.info(f"   Possible si mode CPU uniquement ou erreurs de traitement")
         
         # 🔍 Latences globales pour comparaison
-        LOG.info(f"\n🔍 LATENCES GLOBALES:")
+        LOG.info(f"\n LATENCES GLOBALES:")
         LOG.info(f"   RX→TX moyenne: {stats.get('latency_ms_avg', 0):.2f}ms")
         LOG.info(f"   RX→TX P95: {stats.get('latency_ms_p95', 0):.2f}ms")
         LOG.info(f"   RX→TX max: {stats.get('latency_ms_max', 0):.2f}ms")
@@ -608,39 +665,39 @@ if __name__ == "__main__":
             transfer_ratio = (stats.get('interstage_rx_to_cpu_gpu_ms', 0) + 
                              stats.get('interstage_proc_to_gpu_cpu_ms', 0)) / max(total_interstage, 0.001) * 100
             
-            LOG.info(f"\n🎯 ANALYSE PIPELINE GPU-RÉSIDENT:")
+            LOG.info(f"\n ANALYSE PIPELINE GPU-RÉSIDENT:")
             LOG.info(f"   Temps processing GPU: {proc_ratio:.1f}% du total")
             LOG.info(f"   Temps transferts GPU: {transfer_ratio:.1f}% du total")
             
             if proc_ratio > 60:
-                LOG.info("   ✅ Pipeline optimisé: Processing domine les transferts")
-                LOG.info("   ✅ Architecture GPU-résident validée avec succès")
+                LOG.info("   Pipeline optimisé: Processing domine les transferts")
+                LOG.info("   Architecture GPU-résident validée avec succès")
             elif transfer_ratio > 40:
-                LOG.info("   ⚠️  Optimisation possible: Transferts GPU élevés")
-                LOG.info("   💡 Recommandation: Vérifier les tailles de données et batching")
+                LOG.info("   Optimisation possible: Transferts GPU élevés")
+                LOG.info("   Recommandation: Vérifier les tailles de données et batching")
             else:
-                LOG.info("   📊 Pipeline équilibré")
+                LOG.info("   Pipeline équilibré")
         
         # 🏆 ÉVALUATION FINALE DU PIPELINE
-        LOG.info(f"\n🏆 ÉVALUATION FINALE:")
+        LOG.info(f"\n ÉVALUATION FINALE:")
         if use_gpu and interstage_samples > 0:
             if total_interstage < 15.0:
-                LOG.info("   🥇 EXCELLENT: Pipeline GPU-résident très performant")
+                LOG.info("   EXCELLENT: Pipeline GPU-résident très performant")
             elif total_interstage < 25.0:
-                LOG.info("   🥈 BON: Pipeline GPU-résident performant")
+                LOG.info("   BON: Pipeline GPU-résident performant")
             elif total_interstage < 40.0:
-                LOG.info("   🥉 CORRECT: Pipeline fonctionnel, optimisations possibles")
+                LOG.info("   CORRECT: Pipeline fonctionnel, optimisations possibles")
             else:
-                LOG.info("   ⚠️  LENT: Pipeline nécessite des optimisations")
+                LOG.info("    LENT: Pipeline nécessite des optimisations")
             
-            LOG.info(f"   💾 Mode: GPU-résident optimisé (Phase 3)")
-            LOG.info(f"   🎯 Temps total moyen: {total_interstage:.1f}ms")
+            LOG.info(f"   Mode: GPU-résident optimisé (Phase 3)")
+            LOG.info(f"   Temps total moyen: {total_interstage:.1f}ms")
         elif use_gpu:
-            LOG.info("   ⚠️  Mode GPU activé mais pas de métriques inter-étapes")
-            LOG.info("   💡 Vérifier l'intégration des mark_interstage_*()")
+            LOG.info("    Mode GPU activé mais pas de métriques inter-étapes")
+            LOG.info("    Vérifier l'intégration des mark_interstage_*()")
         else:
-            LOG.info("   💻 Mode CPU classique (pas de GPU disponible)")
-            LOG.info("   📝 Pour de meilleures performances, utiliser un GPU compatible")
+            LOG.info("   Mode CPU classique (pas de GPU disponible)")
+            LOG.info("   Pour de meilleures performances, utiliser un GPU compatible")
                 
     except Exception as e:
         LOG.debug(f"Stats non disponibles: {e}")

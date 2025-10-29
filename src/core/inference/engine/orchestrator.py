@@ -9,6 +9,7 @@ from core.queues.buffers import get_queue_gpu, get_queue_out, try_dequeue, enque
 from core.inference.engine.inference_dfine import run_detection
 from core.inference.engine.inference_sam import run_segmentation
 from core.inference.engine.postprocess import compute_mask_weights
+from core.monitoring import monitor
 
 LOG = logging.getLogger("igt.inference")
 LOG_KPI = logging.getLogger("igt.kpi")
@@ -61,18 +62,30 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         # 1) Run D-FINE to obtain bbox and confidence (GPU-resident mode)
         try:
+            # ⏱️ Mesure de la durée d’inférence D-FINE
+            t_dfine0 = time.perf_counter()
             bbox_t, conf_t = run_detection(
-                dfine_model, 
+                dfine_model,
                 frame_t,
                 allow_cpu_fallback=False,    # Mode strict GPU-resident
                 return_gpu_tensor=True,      # Garde tenseurs sur GPU
                 stream=None,                 # Use default stream
                 conf_thresh=tau_conf         # Pass threshold directly
             )
+            t_dfine1 = time.perf_counter()
+
+            # 🧩 Enregistre la durée dans le monitor
+            try:
+                from core.monitoring import monitor
+                monitor.record_interstage("cpu_gpu_to_proc", (t_dfine1 - t_dfine0) * 1000.0)
+            except Exception:
+                LOG.debug("Failed to record D-FINE latency")
+
         except Exception as e:
             LOG.exception("D-FINE detection failed: %s", e)
             out.update({"state_hint": "LOST", "conf": 0.0})
             return out
+
 
         out["bbox"] = bbox_t
         # Conversion GPU→CPU seulement pour scalar conf si nécessaire
@@ -245,8 +258,18 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
             LOG.debug(f"SAM receives bbox tensor on {bbox_t.device}, dtype={bbox_t.dtype}")
             LOG.debug(f"[MASK DEBUG] Calling run_segmentation with bbox={bbox_t}")
             
+            # ⏱️ Mesure de la durée d’inférence MobileSAM
+            t_sam0 = time.perf_counter()
             mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t, as_numpy=sam_as_numpy)
-            
+            t_sam1 = time.perf_counter()
+
+            # 🧩 Enregistre la durée MobileSAM dans le monitor
+            try:
+                from core.monitoring import monitor
+                monitor.record_interstage("proc_to_gpu_cpu", (t_sam1 - t_sam0) * 1000.0)
+            except Exception:
+                LOG.debug("Failed to record SAM latency")
+
             # KPI après SAM - monitoring résultat  
             try:
                 safe_log_kpi(format_kpi({
@@ -257,6 +280,7 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
                 }))
             except Exception:
                 pass
+
                 
         except Exception as e:
             LOG.exception("SAM segmentation failed: %s", e)
@@ -309,48 +333,95 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
 
 def run_inference(frame_tensor: GpuFrame, stream_infer: Any = None) -> Tuple[ResultPacket, float]:
-    """Exécute (mock) l’inférence GPU et retourne un ResultPacket minimal."""
-    # Contract:
-    # - Input: GpuFrame-like object with .tensor (ndarray/torch.Tensor) and .meta (FrameMeta)
-    # - Output: tuple(result_packet: dict-like, latency_ms: float)
-    t0 = time.perf_counter()
+    """
+    Exécute l’inférence GPU complète (D-FINE → MobileSAM → postprocess),
+    mesure les latences inter-étapes et renvoie un ResultPacket stable.
+
+    Étapes monitorées :
+      1️⃣ RX → CPU→GPU        : transfert du frame vers GPU
+      2️⃣ CPU→GPU → PROC      : exécution DFINE + SAM
+      3️⃣ PROC → GPU→CPU      : récupération du mask depuis GPU
+      4️⃣ GPU→CPU → TX        : préparation + envoi du résultat
+
+    Retour :
+        (result_packet: dict compatible ResultPacket, latency_ms: float)
+    """
+    import torch
+    t0_total = time.perf_counter()  # horodatage global
+
     try:
-        # Extract image/tensor and meta safely
+        # ===============================================================
+        # 🔹 Extraction du frame et des métadonnées
+        # ===============================================================
         arr = getattr(frame_tensor, "tensor", frame_tensor)
         meta = getattr(frame_tensor, "meta", None)
-        frame_id = getattr(getattr(frame_tensor, "meta", None), "frame_id", None)
-        ts = getattr(getattr(frame_tensor, "meta", None), "ts", None)
+        frame_id = getattr(meta, "frame_id", None)
+        ts = getattr(meta, "ts", None)
 
-        # Attempt to find initialized models from model_loader cache if available
+        # ===============================================================
+        # 🔹 1️⃣ RX → CPU→GPU : transfert CPU→GPU
+        # ===============================================================
+        t0_rx_gpu = time.perf_counter()
+        try:
+            if isinstance(arr, np.ndarray):
+                # passage CPU→GPU explicite si pas déjà Tensor CUDA
+                arr = torch.as_tensor(arr, dtype=torch.float32, device="cuda", non_blocking=True)
+            elif isinstance(arr, torch.Tensor) and not arr.is_cuda:
+                arr = arr.to(device="cuda", non_blocking=True)
+        except Exception as e:
+            LOG.warning("Transfert CPU→GPU échoué : %s", e)
+        t1_rx_gpu = time.perf_counter()
+        monitor.record_interstage("rx_to_cpu_gpu", (t1_rx_gpu - t0_rx_gpu) * 1000.0)
+
+        # ===============================================================
+        # 🔹 Récupération des modèles depuis le cache global
+        # ===============================================================
         dfine_model = None
         sam_model = None
         try:
             from core.inference.engine import model_loader as _ml
-
             cache = getattr(_ml, "_MODEL_CACHE", None)
             if cache:
-                # pick the first cached entry (most recent/only)
                 first = next(iter(cache.values()), None)
                 if isinstance(first, dict):
                     dfine_model = first.get("dfine")
                     sam_model = first.get("mobilesam") or first.get("sam")
         except Exception:
-            # best-effort: models may be provided elsewhere; keep None if not found
-            dfine_model = dfine_model
-            sam_model = sam_model
+            LOG.debug("Model cache introuvable ou vide")
 
-        # Prepare inputs / run DFINE -> MobileSAM -> postprocess
+        # ===============================================================
+        # 🔹 2️⃣ CPU→GPU → PROC : exécution D-FINE + SAM
+        # ===============================================================
+        t0_proc = time.perf_counter()
         prepared = prepare_inference_inputs(arr, dfine_model, sam_model)
+        t1_proc = time.perf_counter()
+        monitor.record_interstage("cpu_gpu_to_proc", (t1_proc - t0_proc) * 1000.0)
 
-        t1 = time.perf_counter()
-        latency_ms = (t1 - t0) * 1000.0
-
-        # Ensure mandatory keys and build final ResultPacket-like dict
-        state = prepared.get("state_hint", "LOST")
+        # ===============================================================
+        # 🔹 3️⃣ PROC → GPU→CPU : récupération du mask
+        # ===============================================================
+        t0_mask = time.perf_counter()
         mask = prepared.get("mask", None)
+        # Forcer conversion si le mask est encore sur GPU (cas PyTorch)
+        try:
+            if hasattr(mask, "is_cuda") and mask.is_cuda:
+                mask = mask.detach().cpu().numpy()
+        except Exception:
+            pass
+        t1_mask = time.perf_counter()
+        monitor.record_interstage("proc_to_gpu_cpu", (t1_mask - t0_mask) * 1000.0)
+
+        # ===============================================================
+        # 🔹 4️⃣ GPU→CPU → TX : préparation du ResultPacket
+        # ===============================================================
+        t0_tx = time.perf_counter()
+
         bbox = prepared.get("bbox", None)
+        state = prepared.get("state_hint", "LOST")
         score = float(prepared.get("conf", 0.0) or 0.0)
         weights = prepared.get("weights", None)
+
+        latency_ms = (t1_mask - t0_total) * 1000.0
 
         result = {
             "frame_id": frame_id,
@@ -360,22 +431,26 @@ def run_inference(frame_tensor: GpuFrame, stream_infer: Any = None) -> Tuple[Res
             "score": score,
             "state": state,
             "weights": weights,
-            # latency embedded for downstream KPI/inspection
             "latency_ms": round(latency_ms, 3),
         }
 
-        # Logging + KPI (best-effort)
-        try:
-            LOG.debug("Inference completed: frame=%s state=%s conf=%.3f latency=%.1f ms", frame_id, state, score, latency_ms)
-        except Exception:
-            try:
-                LOG.debug("Inference completed: state=%s", state)
-            except Exception:
-                pass
+        t1_tx = time.perf_counter()
+        monitor.record_interstage("gpu_cpu_to_tx", (t1_tx - t0_tx) * 1000.0)
 
+        # ===============================================================
+        # 🔹 Logging & KPI
+        # ===============================================================
+        try:
+            LOG.debug(
+                "Inference completed: frame=%s state=%s conf=%.3f latency=%.1f ms",
+                frame_id, state, score, latency_ms
+            )
+        except Exception:
+            LOG.debug("Inference completed (frame=%s)", frame_id)
+
+        # Émission KPI structurée (pour kpi.log + dashboard)
         try:
             from core.monitoring.kpi import safe_log_kpi, format_kpi
-
             kdata = {
                 "ts": time.time(),
                 "event": "infer_frame",
@@ -385,19 +460,19 @@ def run_inference(frame_tensor: GpuFrame, stream_infer: Any = None) -> Tuple[Res
                 "state": state,
             }
             safe_log_kpi(format_kpi(kdata))
-        except Exception:
-            LOG.debug("Failed to emit KPI infer_frame")
+        except Exception as e:
+            LOG.debug("Failed to emit KPI infer_frame: %s", e)
 
-        # Return result and measured latency
         return result, latency_ms
 
+    # ===============================================================
+    # 🔹 Gestion d'erreurs robuste
+    # ===============================================================
     except Exception as e:
-        # Always measure latency even on error
-        t1 = time.perf_counter()
-        latency_ms = (t1 - t0) * 1000.0
+        t1_fail = time.perf_counter()
+        latency_ms = (t1_fail - t0_total) * 1000.0
         LOG.exception("run_inference failed: %s", e)
 
-        # Minimal stable ResultPacket-like dict on error
         err = {
             "state": "ERROR",
             "bbox": None,
@@ -408,7 +483,6 @@ def run_inference(frame_tensor: GpuFrame, stream_infer: Any = None) -> Tuple[Res
             "latency_ms": round(latency_ms, 3),
         }
         return err, latency_ms
-
 
 def fuse_outputs(mask: Any, score: float, state: str) -> ResultPacket:
     """Fusionne les sorties et renvoie un ResultPacket standardisé."""

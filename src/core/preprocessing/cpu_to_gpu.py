@@ -589,6 +589,13 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
     t_copy1 = time.time()
     copy_ms = (t_copy1 - t_copy0) * 1000.0
 
+    # 🧩 Enregistre la durée CPU→GPU dans le monitor (Phase 3 - RX→CPU-GPU)
+    try:
+        from core.monitoring import monitor
+        monitor.record_interstage("rx_to_cpu_gpu", copy_ms)
+    except Exception:
+        LOG.debug("Failed to record CPU→GPU latency")
+
     # Build GpuFrame
     # Validate tensor invariants
     try:

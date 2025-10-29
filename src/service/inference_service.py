@@ -58,15 +58,51 @@ def main():
         writer.writerow(["frame_id", "t_in_igt", "t_recv", "t_after_infer", "t_sent_mask", "dt_infer_ms"])  # écrit les en-têtes
 
         try:
-            # boucle principale : réception d’une image → inférence → envoi du masque → enregistrement latence
+            # boucle principale : réception d'une image → inférence → envoi du masque → enregistrement latence
             for frame_id, (img, meta) in gw.image_generator():  # récupère les images reçues (mockées ou réelles)
                 t_recv = time.time()              # horodatage local à la réception
                 t_in_igt = meta.get("timestamp", None)  # timestamp original du message IGTLink
+                
+                # 🎯 MÉTRIQUES INTER-ÉTAPES : Marquer RX (début du workflow)
+                try:
+                    if hasattr(gw, 'stats') and frame_id is not None:
+                        gw.stats.mark_interstage_rx(frame_id, t_recv)
+                except Exception:
+                    pass
+                
+                # 🎯 MÉTRIQUES INTER-ÉTAPES : Simuler CPU→GPU transfer (étape 1)
+                t_cpu_gpu_start = time.time()
+                time.sleep(0.001)  # Simuler 1ms de transfert CPU→GPU 
+                t_cpu_gpu_end = time.time()
+                try:
+                    if hasattr(gw, 'stats') and frame_id is not None:
+                        gw.stats.mark_interstage_cpu_to_gpu(frame_id, t_cpu_gpu_end)
+                except Exception:
+                    pass
 
-                mask = mock_infer(img)            # exécute l’inférence simulée (IA fictive)
-                t_after = time.time()             # horodatage juste après l’inférence
+                # 🎯 MÉTRIQUES INTER-ÉTAPES : Processing GPU (étape 2)
+                t_proc_start = time.time()
+                mask = mock_infer(img)            # exécute l'inférence simulée (IA fictive)
+                t_proc_end = time.time()
+                try:
+                    if hasattr(gw, 'stats') and frame_id is not None:
+                        gw.stats.mark_interstage_proc_done(frame_id, t_proc_end)
+                except Exception:
+                    pass
+                
+                # 🎯 MÉTRIQUES INTER-ÉTAPES : Simuler GPU→CPU transfer (étape 3)
+                t_gpu_cpu_start = time.time()
+                time.sleep(0.001)  # Simuler 1ms de transfert GPU→CPU
+                t_gpu_cpu_end = time.time()
+                try:
+                    if hasattr(gw, 'stats') and frame_id is not None:
+                        gw.stats.mark_interstage_gpu_to_cpu(frame_id, t_gpu_cpu_end)
+                except Exception:
+                    pass
 
-                gw.send_mask(mask, meta)          # envoie le masque résultant à 3D Slicer
+                t_after = time.time()             # horodatage juste après l'inférence
+
+                gw.send_mask(mask, meta)          # envoie le masque résultant à 3D Slicer (TX marqué dans slicer_server.py)
                 t_sent = time.time()              # horodatage après envoi
 
                 # enregistre la latence dans le CSV (pour chaque frame)

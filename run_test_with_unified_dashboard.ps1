@@ -20,10 +20,7 @@ Write-Host ""
 
 # Start dashboard in background
 Write-Host "Starting dashboard..." -ForegroundColor Yellow
-$dashboardJob = Start-Job -ScriptBlock {
-    Set-Location $using:PWD
-    python -m service.dashboard_unified --port 8050 --host 0.0.0.0
-}
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; python -m service.dashboard_unified --port 8050 --host 0.0.0.0"
 
 # Wait a bit for dashboard to come up
 Write-Host "Waiting for dashboard to start..." -ForegroundColor Yellow

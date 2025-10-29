@@ -1,3 +1,27 @@
+# ============================================================
+# 🔧 Global UTF-8 patch for Windows consoles and loggers
+# ============================================================
+import sys, io, os, locale
+
+if os.name == "nt":
+    try:
+        # Force code page UTF-8 pour tous les sous-processus
+        os.system("chcp 65001 >NUL")
+        # Force tous les flux standards en UTF-8
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
+        # Applique aussi au logger racine
+        import logging
+        for handler in logging.root.handlers:
+            try:
+                handler.setStream(sys.stdout)
+            except Exception:
+                pass
+        print(f"[UTF8] Active encoding={sys.stdout.encoding}, locale={locale.getpreferredencoding(False)}")
+    except Exception as e:
+        print(f"[UTF8] Patch failed: {e}")
+
 import logging  # module standard de journalisation Python
 import queue  # file FIFO thread-safe, utilisée pour transporter les logs vers le listener
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler  # handlers pour logging asynchrone + rotation
@@ -30,6 +54,14 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     Returns the started QueueListener which should be .stop()'ed on shutdown.  # retourne la file et le listener (à .stop() lors de l’arrêt)
     """
+    # 🔧 Force UTF-8 pour tous les flux de sortie
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8', errors='replace')
+        logging.StreamHandler(sys.stdout).setStream(sys.stdout)
+    except Exception as e:
+        print(f"[async_logging] UTF-8 override skipped: {e}")
+
     global _listener_obj, _log_queue  # accès global
 
     # 🚫 Protection : empêche double initialisation
@@ -68,9 +100,17 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     if kpi_formatter is None:  # si aucun formatter KPI n’a été trouvé
         kpi_formatter = logging.Formatter("%(asctime)s | %(processName)s | %(threadName)s | %(name)s | %(message)s")  # format KPI de repli
 
-    handler_main = RotatingFileHandler(f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5)  # handler fichier avec rotation pour pipeline.log (10 Mo, 5 backups)
+    # handler_main = RotatingFileHandler(f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5)  # handler fichier avec rotation pour pipeline.log (10 Mo, 5 backups)
+    
+    handler_main = RotatingFileHandler(
+    f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5, encoding="utf-8"
+)
+
+    
     handler_main.setLevel(logging.DEBUG)  # capte tous les niveaux jusqu’à DEBUG
     handler_main.setFormatter(std_formatter)  # applique le formatter standard
+
+    # handler_main.encoding = 'utf-8'  # force UTF-8 sur le handler principal
     
     try: # exclut ERROR+ de pipeline.log (redirigés vers error.log)
         from core.monitoring.filters import NoErrorFilter  # filtre maison pour retirer ERROR des handlers non dédiés
@@ -78,10 +118,16 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     except Exception:
         pass  # tolère l’absence du filtre sans casser l’initialisation
 
-    handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3)  # handler fichier pour kpi.log (5 Mo, 3 backups)
+    # handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3)  # handler fichier pour kpi.log (5 Mo, 3 backups)
+    # 
+    handler_kpi = RotatingFileHandler(
+        f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+    )
+    
     handler_kpi.setLevel(logging.INFO)  # n’accepte que INFO et plus
     handler_kpi.setFormatter(kpi_formatter)  # applique le formatter KPI
 
+    # handler_kpi.encoding = 'utf-8'   # identique UTF-8 sur le handler KPI
     # option d’un sink KPI au format JSONL via variable d’environnement
     import os  # ré-import local (autorisé, inoffensif)
     kpi_jsonl_handler = None  # handler JSONL optionnel initialisé à None
@@ -90,7 +136,11 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     if os.getenv("KPI_JSONL", "0") not in ("0", "false", "False"):  # si KPI_JSONL activé (≠ 0/false)
         try:
             from core.monitoring.kpi import KpiJsonFormatter  # formatter spécialisé JSONL pour KPI
-            kpi_jsonl_handler = RotatingFileHandler(f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3)  # handler fichier JSONL (rotation 5 Mo, 3 backups)
+            # kpi_jsonl_handler = RotatingFileHandler(f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3)  # handler fichier JSONL (rotation 5 Mo, 3 backups)
+
+            kpi_jsonl_handler = RotatingFileHandler(
+                f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+            )
             kpi_jsonl_handler.setLevel(logging.INFO)  # niveau INFO et supérieurs
             kpi_jsonl_handler.setFormatter(KpiJsonFormatter())  # applique le formatter JSONL
             listener_handlers.append(kpi_jsonl_handler)  # ajoute le handler JSONL au listener
@@ -98,9 +148,13 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
             pass  # si indisponible, on ignore sans interrompre l’installation
 
     if create_error_handler:  # si l’option de création du handler d’erreurs est activée
-        handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3)  # error.log (≈7 Mo, 3 backups)
+        # handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3)  # error.log (≈7 Mo, 3 backups)
+        handler_err = RotatingFileHandler(
+            f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3, encoding="utf-8"
+        )
         handler_err.setLevel(logging.ERROR)  # ne prend que ERROR et CRITICAL
         handler_err.setFormatter(std_formatter)  # format standard pour les erreurs
+        # handler_err.encoding = 'utf-8'   # ✅ idem
         listener_handlers.append(handler_err)  # ajoute le handler d’erreurs à la liste du listener
 
 

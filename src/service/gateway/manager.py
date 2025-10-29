@@ -264,9 +264,12 @@ class IGTGateway:
 
                 # Si la frame contient un identifiant, on enregistre son timestamp RX pour mesurer la latence RX→TX plus tard.
                 try:
-                    fid = getattr(frame.meta, "frame_id", None)  # Récupère l’identifiant de frame s’il existe.
-                    if fid is not None:  # Vérifie que l’ID est valide.
-                        self.stats.mark_rx(fid, float(getattr(frame.meta, "ts", frame.meta.ts)))  # Enregistre le moment de réception pour le calcul futur de latence.
+                    fid = getattr(frame.meta, "frame_id", None)  # Récupère l'identifiant de frame s'il existe.
+                    if fid is not None:  # Vérifie que l'ID est valide.
+                        rx_ts = float(getattr(frame.meta, "ts", frame.meta.ts))
+                        self.stats.mark_rx(fid, rx_ts)  # Enregistre le moment de réception pour le calcul futur de latence RX→TX.
+                        # 🎯 NOUVELLES MÉTRIQUES INTER-ÉTAPES : Marquer le début du workflow GPU-résident
+                        self.stats.mark_interstage_rx(fid, rx_ts)  # Enregistre le début du workflow inter-étapes détaillé.
                 except Exception:
                     pass  # Ignore toute erreur liée aux métadonnées incomplètes ou mal formées.
 

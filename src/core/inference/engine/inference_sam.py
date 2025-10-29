@@ -103,9 +103,21 @@ def run_segmentation(
                 # Mode visualisation (legacy)
                 if as_numpy:
                     LOG.debug("Returning SAM mask as numpy (CPU) — visualization mode")
+
+                    # ⏱️ Début de mesure GPU→CPU
+                    t0 = time.perf_counter()
                     result = mask.astype(bool) if isinstance(mask, np.ndarray) else mask.detach().cpu().numpy().astype(bool)
-                    
-                    # KPI instrumentation
+                    t1 = time.perf_counter()
+                    latency_ms_gpu_cpu = (t1 - t0) * 1000.0
+
+                    # 🧩 Enregistre la latence GPU→CPU dans le monitor
+                    try:
+                        from core.monitoring import monitor
+                        monitor.record_interstage("proc_to_gpu_cpu", latency_ms_gpu_cpu)
+                    except Exception:
+                        LOG.debug("Failed to record GPU→CPU latency")
+
+                    # KPI instrumentation (inchangée)
                     try:
                         from core.monitoring.kpi import safe_log_kpi, format_kpi
                         safe_log_kpi(format_kpi({
@@ -116,8 +128,9 @@ def run_segmentation(
                         }))
                     except Exception:
                         LOG.debug("KPI sam_output skipped")
-                    
+
                     return result
+
 
                 # Mode production GPU-resident
                 if isinstance(mask, np.ndarray):

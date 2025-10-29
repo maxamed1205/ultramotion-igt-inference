@@ -119,9 +119,25 @@ class UnifiedMetricsCollector:
         # 1. Métriques Pipeline (RX/PROC/TX)
         aggregated = get_aggregated_metrics() or {}
         
-        # Si pas de métriques temps réel, lire depuis les logs
+        # Si pas de métriques temps réel, essayer d'abord le gateway actif, puis les logs
         if not aggregated or aggregated.get("fps_in", 0.0) == 0.0:
-            aggregated.update(self._read_metrics_from_logs())
+            # 🎯 NOUVEAU: Essayer le gateway actif directement
+            active_gw = get_active_gateway()
+            if active_gw is not None:
+                from core.monitoring.monitor import collect_gateway_metrics
+                gw_metrics = collect_gateway_metrics(active_gw)
+                if gw_metrics:
+                    aggregated.update(gw_metrics)
+                    # Mapper les noms de clés pour compatibilité
+                    aggregated.update({
+                        "fps_in": gw_metrics.get("fps_rx", 0.0),
+                        "fps_out": gw_metrics.get("fps_tx", 0.0),
+                        "latency_ms": gw_metrics.get("avg_latency_ms", 0.0),
+                    })
+            
+            # Fallback sur les logs si toujours pas de données
+            if not aggregated or aggregated.get("fps_in", 0.0) == 0.0:
+                aggregated.update(self._read_metrics_from_logs())
         
         # 2. Métriques GPU détaillées (norm/pin/copy)
         gpu_metrics = self._collect_gpu_transfer_metrics()
@@ -930,14 +946,21 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 `${{(data.latency_rxtx_avg || 0).toFixed(1)}} / ${{(data.latency_rxtx_last || 0).toFixed(1)}}`;
             
             // 🎯 Nouvelles Métriques Inter-Étapes Détaillées (Pipeline GPU-Résident)
+            // 🔧 CORRECTIF: Filtrer les valeurs aberrantes (timestamps absolus)
+            const formatLatency = (val) => {{
+                if (!val || Math.abs(val) > 1000000) return "N/A";
+                if (val <= 0) return "0.00";
+                return val.toFixed(2);
+            }};
+            
             document.getElementById('interstage-rx-gpu').textContent = 
-                `${{(data.interstage_rx_to_cpu_gpu_ms || 0).toFixed(2)}} / ${{(data.interstage_rx_to_cpu_gpu_p95_ms || 0).toFixed(2)}}`;
+                `${{formatLatency(data.interstage_rx_to_cpu_gpu_ms)}} / ${{formatLatency(data.interstage_rx_to_cpu_gpu_p95_ms)}}`;
             document.getElementById('interstage-gpu-proc').textContent = 
-                `${{(data.interstage_cpu_gpu_to_proc_ms || 0).toFixed(2)}} / ${{(data.interstage_cpu_gpu_to_proc_p95_ms || 0).toFixed(2)}}`;
+                `${{formatLatency(data.interstage_cpu_gpu_to_proc_ms)}} / ${{formatLatency(data.interstage_cpu_gpu_to_proc_p95_ms)}}`;
             document.getElementById('interstage-proc-cpu').textContent = 
-                `${{(data.interstage_proc_to_gpu_cpu_ms || 0).toFixed(2)}} / ${{(data.interstage_proc_to_gpu_cpu_p95_ms || 0).toFixed(2)}}`;
+                `${{formatLatency(data.interstage_proc_to_gpu_cpu_ms)}} / ${{formatLatency(data.interstage_proc_to_gpu_cpu_p95_ms)}}`;
             document.getElementById('interstage-cpu-tx').textContent = 
-                `${{(data.interstage_gpu_cpu_to_tx_ms || 0).toFixed(2)}} / ${{(data.interstage_gpu_cpu_to_tx_p95_ms || 0).toFixed(2)}}`;
+                `${{formatLatency(data.interstage_gpu_cpu_to_tx_ms)}} / ${{formatLatency(data.interstage_gpu_cpu_to_tx_p95_ms)}}`;
             document.getElementById('interstage-samples').textContent = data.interstage_samples || 0;
             
             // GPU Transfer

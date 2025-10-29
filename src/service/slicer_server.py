@@ -135,12 +135,17 @@ def run_slicer_server(
                 # 🔬 INSTRUMENTATION : Timestamp APRÈS envoi
                 t_after_send = time.time()
                 
-                # ✅ LATENCY TRACKING : Enregistrer timestamp TX pour calcul RX→TX latency
+                # ✅ LATENCY TRACKING : Enregistrer timestamp TX pour calcul RX→TX et inter-étapes
                 if gateway_stats is not None and meta and "frame_id" in meta:
                     try:
-                        gateway_stats.mark_tx(int(meta["frame_id"]), t_after_send)
-                    except Exception:
-                        pass  # Ignorer erreurs de tracking (non-critique)
+                        frame_id = int(meta["frame_id"])
+                        # 1️⃣ Latence RX→TX globale
+                        gateway_stats.mark_tx(frame_id, t_after_send)
+                        # 2️⃣ Latences inter-étapes GPU résidentes
+                        gateway_stats.mark_interstage_tx(frame_id, t_after_send)
+                    except Exception as e:
+                        LOG.debug(f"mark_tx/mark_interstage_tx() failed for frame {meta.get('frame_id', -1)}: {e}")
+                        pass  # Ignorer erreurs non critiques
                 
                 # 🔬 LOG avec détails de timing
                 t_read = (t_after_read - t_start) * 1000  # ms
@@ -151,6 +156,15 @@ def run_slicer_server(
                     f"[TX-SIM] Sent frame #{meta.get('frame_id', -1):03d} "
                     f"| read={t_read:.2f}ms send={t_send:.2f}ms total={t_total:.2f}ms"
                 )
+
+
+                # ✅ ENREGISTREMENT DANS LE MONITOR GLOBAL (Phase 4)
+                try:
+                    from core.monitoring import monitor
+                    monitor.record_interstage("gpu_cpu_to_tx", t_total)
+                except Exception:
+                    LOG.debug("Monitor TX latency record failed")
+
 
                 send_count += 1
                 sent_timestamps.append(now)

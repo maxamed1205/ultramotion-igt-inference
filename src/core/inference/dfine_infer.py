@@ -129,12 +129,26 @@ def infer_dfine(model: torch.nn.Module,
 
     outputs: dict
     try:
+        # ⏱️ Mesure du temps pur de forward GPU
+        t0 = time.perf_counter()
+
         with torch.cuda.stream(stream):
             if ENABLE_FP16:
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
                     outputs = model(frame_mono)
             else:
                 outputs = model(frame_mono)
+
+        t1 = time.perf_counter()
+        latency_ms = (t1 - t0) * 1000.0
+
+        # ✅ Enregistrement local de la latence GPU (monitor phase cpu_gpu_to_proc)
+        try:
+            from core.monitoring import monitor
+            monitor.record_interstage("cpu_gpu_to_proc", latency_ms)
+        except Exception:
+            LOG.debug("Monitor infer_dfine record failed")
+
         # Pas de sync ici : on laisse vivre la latence GPU pour overlap avec le CPU amont.
         return outputs
 
@@ -350,7 +364,9 @@ def run_dfine_detection(model: torch.nn.Module,
         stream.wait_stream(in_stream)
 
     # Temps CPU global (la lecture des scalars forceront la sync partielle)
+    # ⏱️ Début de mesure de latence D-FINE
     t0 = time.time()
+    t0_perf = time.perf_counter()
 
     # Prétraitement minimal (no-op logique en mono-canal natif)
     x = preprocess_frame_for_dfine(in_tensor)
@@ -359,7 +375,20 @@ def run_dfine_detection(model: torch.nn.Module,
     outputs = infer_dfine(model, x, stream=stream, allow_cpu_fallback=allow_cpu_fallback)
 
     # Post-traitement (l'accès aux scalars déclenche la sync nécessaire)
-    bbox_t, conf_t = postprocess_dfine(outputs, img_size=(W, H), conf_thresh=conf_thresh, return_gpu_tensor=return_gpu_tensor)
+    bbox_t, conf_t = postprocess_dfine(
+        outputs, img_size=(W, H), conf_thresh=conf_thresh, return_gpu_tensor=return_gpu_tensor
+    )
+
+    # ⏱️ Fin de mesure de latence D-FINE
+    t1_perf = time.perf_counter()
+    latency_ms = (t1_perf - t0_perf) * 1000.0
+
+    # ✅ Enregistre la durée de traitement GPU D-FINE dans le monitor global
+    try:
+        from core.monitoring import monitor
+        monitor.record_interstage("cpu_gpu_to_proc", latency_ms)
+    except Exception:
+        LOG.debug("Monitor D-FINE record failed")
 
     # KPI minimal (non-bloquant – l’accès à conf_t a déjà synchronisé le strict nécessaire)
     t1 = time.time()
@@ -372,7 +401,8 @@ def run_dfine_detection(model: torch.nn.Module,
     try:
         LOG_KPI.info(
             "event=infer_dfine ts=%.3f infer_ms=%.2f gpu_mem_MB=%.1f conf_max=%.3f H=%d W=%d",
-            time.time(), infer_ms, mem_mb, float(conf_t) if conf_t is not None else -1.0, H, W
+            time.time(), infer_ms, mem_mb,
+            float(conf_t) if conf_t is not None else -1.0, H, W
         )
     except Exception:
         pass

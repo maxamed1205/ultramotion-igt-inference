@@ -143,7 +143,24 @@ def get_aggregated_metrics(gateway=None) -> Optional[Dict[str, float]]:
         except Exception as e:
             LOG.debug("Failed to collect gateway metrics: %s", e)
     
-    return avg  # renvoie les valeurs moyennes (simulées ou fusionnées avec gateway)
+    # 🔹 Fusion avec les métriques GPU-résidentes locales (Phase 3)
+    try:
+        inter = get_interstage_summary()
+        if inter:
+            avg.update(inter)
+    except Exception as e:
+        LOG.debug(f"Interstage summary merge failed: {e}")
+
+    # 🔹 Fusion avec les métriques GPU-résidentes locales (Phase 3)
+    try:
+        inter = get_interstage_summary()
+        if inter:
+            avg.update(inter)
+    except Exception as e:
+        LOG.debug(f"Interstage summary merge failed: {e}")
+
+    return avg  # renvoie les valeurs moyennes fusionnées
+
 
 
 def get_gpu_utilization() -> float:
@@ -207,6 +224,15 @@ def collect_gateway_metrics(gw) -> Dict[str, float]:
         # Métadonnées inter-étapes
         "interstage_samples": int(snap.get("interstage_samples", 0)),
     }
+    # 🔥 Fusionne les valeurs GPU-résidentes enregistrées localement
+    try:
+        local_summary = get_interstage_summary()
+        if local_summary:
+            metrics.update(local_summary)
+    except Exception as e:
+        LOG.debug(f"Interstage summary merge failed: {e}")
+
+    return metrics
 
 
 def log_kpi_tick(fps_in: float, fps_out: float, latency_ms: float, gpu_util: float = 0.0) -> None:
@@ -483,3 +509,47 @@ def get_pipeline_metrics() -> Dict:
     """
     # collect_queue_metrics() retourne l’état actuel de chaque file : taille, nombre de drops, etc.
     return {"queues": collect_queue_metrics(), "timestamp": time.time()}
+
+# ═════════════════════════════════════════════════════════════
+# 🧩 Interstage latency tracking (Phase 3 GPU-resident)
+# ═════════════════════════════════════════════════════════════
+
+from statistics import mean
+from numpy import percentile
+
+_INTERSTAGE_HISTORY = {
+    "rx_to_cpu_gpu": [],
+    "cpu_gpu_to_proc": [],
+    "proc_to_gpu_cpu": [],
+    "gpu_cpu_to_tx": [],
+}
+
+def record_interstage(stage: str, latency_ms: float):
+    """Enregistre une latence d’étape GPU-résident (ms).
+
+    Exemple :
+        record_interstage("rx_to_cpu_gpu", 0.42)
+    """
+    if stage not in _INTERSTAGE_HISTORY:
+        LOG.debug(f"Stage inconnu: {stage}")
+        return
+    _INTERSTAGE_HISTORY[stage].append(float(latency_ms))
+    # On garde un historique glissant raisonnable (300 derniers)
+    if len(_INTERSTAGE_HISTORY[stage]) > 300:
+        _INTERSTAGE_HISTORY[stage].pop(0)
+
+
+def get_interstage_summary() -> Dict[str, float]:
+    """Retourne les moyennes et P95 de toutes les étapes GPU-résident."""
+    summary = {}
+    total_samples = 0
+    for stage, values in _INTERSTAGE_HISTORY.items():
+        if not values:
+            summary[f"interstage_{stage}_ms"] = 0.0
+            summary[f"interstage_{stage}_p95_ms"] = 0.0
+            continue
+        total_samples += len(values)
+        summary[f"interstage_{stage}_ms"] = round(mean(values), 3)
+        summary[f"interstage_{stage}_p95_ms"] = round(percentile(values, 95), 3)
+    summary["interstage_samples"] = total_samples
+    return summary
