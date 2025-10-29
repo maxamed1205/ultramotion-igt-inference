@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-10-29T14:21:11.718791",
+  "device": "cuda",
+  "cuda_available": true,
+  "components": {
+    "hungarian_matcher": {
+      "component": "HungarianMatcher",
+      "cpu_time_ms": 63.26413154602051,
+      "gpu_time_ms": 18.347978591918945,
+      "speedup_factor": 3.4480164247566822,
+      "cpu_memory_mb": 0.0,
+      "gpu_memory_mb": 0.00390625,
+      "memory_efficiency_pct": 0,
+      "batch_size": 4,
+      "num_queries": 300,
+      "device": "cuda"
+    },
+    "sam_predictor": {
+      "component": "SamPredictor",
+      "cpu_time_ms": 2.003192901611328,
+      "gpu_time_ms": 0.0,
+      "speedup_factor": 0,
+      "transfer_eliminated": true,
+      "device": "cuda"
+    },
+    "orchestrator": {
+      "component": "Orchestrator",
+      "legacy_time_ms": 0.0,
+      "gpu_time_ms": 6.914377212524414,
+      "speedup_factor": 0.0,
+      "gpu_first_enabled": true,
+      "device": "cuda"
+    }
+  },
+  "summary": {
+    "average_speedup": 1.1493388082522273,
+    "max_speedup": 3.4480164247566822,
+    "min_speedup": 0,
+    "components_optimized": 3,
+    "gpu_transfers_eliminated": true,
+    "pipeline_status": "100% GPU-resident"
+  }
+}

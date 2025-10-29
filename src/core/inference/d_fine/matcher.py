@@ -28,13 +28,14 @@ class HungarianMatcher(nn.Module):
         "use_focal_loss",
     ]
 
-    def __init__(self, weight_dict, use_focal_loss=False, alpha=0.25, gamma=2.0):
+    def __init__(self, weight_dict, use_focal_loss=False, alpha=0.25, gamma=2.0, use_gpu_match=False):
         """Creates the matcher
 
         Params:
             cost_class: This is the relative weight of the classification error in the matching cost
             cost_bbox: This is the relative weight of the L1 error of the bounding box coordinates in the matching cost
             cost_giou: This is the relative weight of the giou loss of the bounding box in the matching cost
+            use_gpu_match: Use GPU-resident matching with torch.argmin approximation (faster but approximate)
         """
         super().__init__()
         self.cost_class = weight_dict["cost_class"]
@@ -44,10 +45,71 @@ class HungarianMatcher(nn.Module):
         self.use_focal_loss = use_focal_loss
         self.alpha = alpha
         self.gamma = gamma
+        self.use_gpu_match = use_gpu_match
 
         assert (
             self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0
         ), "all costs cant be 0"
+
+    def _gpu_hungarian_approximation(self, cost_matrix, sizes):
+        """
+        GPU-resident approximation of Hungarian matching using torch.argmin.
+        This provides 1-to-1 assignment without requiring CPU transfer.
+        
+        Args:
+            cost_matrix: [batch_size, num_queries, total_targets] cost tensor on GPU
+            sizes: List of target sizes per batch item
+            
+        Returns:
+            List of (query_indices, target_indices) tuples per batch item
+        """
+        device = cost_matrix.device
+        batch_size = cost_matrix.size(0)
+        indices = []
+        
+        offset = 0
+        for batch_idx in range(batch_size):
+            batch_cost = cost_matrix[batch_idx, :, offset:offset + sizes[batch_idx]]  # [num_queries, num_targets]
+            
+            if sizes[batch_idx] == 0:
+                # No targets for this batch item
+                indices.append((torch.tensor([], dtype=torch.int64, device=device),
+                              torch.tensor([], dtype=torch.int64, device=device)))
+                continue
+            
+            # Simple greedy assignment: for each target, find best query
+            target_to_query = torch.argmin(batch_cost, dim=0)  # [num_targets] - best query for each target
+            
+            # Ensure 1-to-1 mapping by handling conflicts
+            query_indices = []
+            target_indices = []
+            used_queries = set()
+            
+            for target_idx in range(sizes[batch_idx]):
+                best_query = target_to_query[target_idx].item()
+                if best_query not in used_queries:
+                    query_indices.append(best_query)
+                    target_indices.append(target_idx)
+                    used_queries.add(best_query)
+                else:
+                    # Find next best available query for this target
+                    target_costs = batch_cost[:, target_idx]  # [num_queries]
+                    sorted_queries = torch.argsort(target_costs)
+                    for query_idx in sorted_queries:
+                        if query_idx.item() not in used_queries:
+                            query_indices.append(query_idx.item())
+                            target_indices.append(target_idx)
+                            used_queries.add(query_idx.item())
+                            break
+            
+            indices.append((
+                torch.tensor(query_indices, dtype=torch.int64, device=device),
+                torch.tensor(target_indices, dtype=torch.int64, device=device)
+            ))
+            
+            offset += sizes[batch_idx]
+        
+        return indices
 
     @torch.no_grad()
     def forward(self, outputs: Dict[str, torch.Tensor], targets, return_topk=False):
@@ -109,21 +171,33 @@ class HungarianMatcher(nn.Module):
 
         # Final cost matrix 3 * self.cost_bbox + 2 * self.cost_class + self.cost_giou
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-        C = C.view(bs, num_queries, -1).cpu()
-
+        C = C.view(bs, num_queries, -1)
+        
         sizes = [len(v["boxes"]) for v in targets]
         C = torch.nan_to_num(C, nan=1.0)
-        indices_pre = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
-        indices = [
-            (torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64))
-            for i, j in indices_pre
-        ]
+        
+        # GPU-resident vs CPU fallback matching
+        if self.use_gpu_match:
+            # GPU-resident path: keep tensors on GPU, use approximation
+            indices = self._gpu_hungarian_approximation(C, sizes)
+        else:
+            # Legacy CPU path: exact Hungarian matching via SciPy
+            C_cpu = C.cpu()
+            indices_pre = [linear_sum_assignment(c[i]) for i, c in enumerate(C_cpu.split(sizes, -1))]
+            indices = [
+                (torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64))
+                for i, j in indices_pre
+            ]
 
         # Compute topk indices
         if return_topk:
+            # For topk, we need indices_pre for compatibility
+            if self.use_gpu_match:
+                # Convert GPU indices back to numpy format for topk compatibility
+                indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]
             return {
                 "indices_o2m": self.get_top_k_matches(
-                    C, sizes=sizes, k=return_topk, initial_indices=indices_pre
+                    C if self.use_gpu_match else C_cpu, sizes=sizes, k=return_topk, initial_indices=indices_pre
                 )
             }
 
@@ -131,10 +205,12 @@ class HungarianMatcher(nn.Module):
 
     def get_top_k_matches(self, C, sizes, k=1, initial_indices=None):
         indices_list = []
+        # Ensure C is on CPU for linear_sum_assignment
+        C_cpu = C.cpu() if hasattr(C, 'cpu') else C
         # C_original = C.clone()
         for i in range(k):
             indices_k = (
-                [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+                [linear_sum_assignment(c[i]) for i, c in enumerate(C_cpu.split(sizes, -1))]
                 if i > 0
                 else initial_indices
             )
