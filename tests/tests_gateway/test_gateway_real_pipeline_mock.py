@@ -77,6 +77,7 @@ def simulate_frame_source(gateway: IGTGateway, stop_event: threading.Event, fps:
         )
         frame = RawFrame(image=img, meta=meta)
         gateway._inject_frame(frame)
+        LOG.info(f"[RX-SIM] Generated frame #{frame_id:03d}")
         frame_id += 1
         time.sleep(interval)
 
