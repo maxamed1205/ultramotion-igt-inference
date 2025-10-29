@@ -17,118 +17,107 @@ disable_existing_loggers: false  # conserve les loggers déjà existants (utile 
 # Le niveau console est toujours ajusté par main.py.
 # Ne pas modifier ce champ manuellement.
 # ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# FORMATTERS
+# ─────────────────────────────────────────────────────────────
+formatters:
+  standard:  # format principal pour logs console
+    format: "[%(asctime)s] [%(levelname)s] %(processName)s/%(threadName)s | %(name)s | %(message)s"  # timestamp, niveau, nom thread, logger, message
 
-formatters:  # définition des formats de sortie des messages
-  standard:
-    format: "[%(asctime)s] [%(levelname)s] %(processName)s/%(threadName)s | %(name)s | %(message)s"  # format standard : horodatage, niveau, nom du process/thread, nom du logger et message
-  # Formatteur KPI : émet un préfixe stable "kpi" et une charge utile clé=valeur facilement analysable
-  # Les messages KPI produits par le code doivent suivre la forme : "kpi ts=<date lisible> clé1=val1 clé2=val2 ..."
-  # Exemple : kpi ts=2025-10-18 21:02:14,321 fps_rx=23.4 latency_ms=42.1 drops=0
-  # Avantage : format lisible par un humain tout en restant facilement analysable par un script (ex: pandas)
-  kpi:
-    format: "kpi ts_log=%(asctime)s %(message)s"  # timestamp au format humain (YYYY-MM-DD HH:MM:SS,ms)
-    
-filters:  # définition des filtres de log
-  perf_filter:
-    '()': core.monitoring.filters.PerfFilter  # filtre de performance : désactive certains logs en mode perf
-  no_error:
-    '()': core.monitoring.filters.NoErrorFilter  # filtre excluant les messages d’erreur des handlers non dédiés (évite duplication)
+  kpi:  # format spécialisé pour les métriques KPI
+    format: "kpi ts_log=%(asctime)s %(message)s"  # ex: kpi ts_log=2025-10-28 11:33:12,888 latency_ms=12.3 fps_rx=30.0
 
-handlers:  # définition des canaux de sortie
-  console:
-    class: logging.StreamHandler  # affiche les logs dans la console
-    formatter: standard  # utilise le format standard
-    level: WARNING    # niveau par défaut WARNING (ajusté à l’exécution par main.py selon LOG_MODE)
-    filters: [perf_filter]  # applique le filtre de performance (réduction de verbosité)
+# ─────────────────────────────────────────────────────────────
+# FILTRES
+# ─────────────────────────────────────────────────────────────
+filters:
+  perf_filter:  # filtre maison pour réduire la verbosité en mode perf
+    '()': core.monitoring.filters.PerfFilter  # charge la classe PerfFilter depuis ton module
+  no_error:  # filtre qui empêche duplication des erreurs (déjà redirigées vers error.log)
+    '()': core.monitoring.filters.NoErrorFilter  # charge la classe NoErrorFilter
 
-  file:
-    class: logging.handlers.RotatingFileHandler  # écrit dans un fichier avec rotation automatique
-    formatter: standard  # format standard
-    filename: logs/pipeline.log  # fichier principal des logs d’exécution
-    maxBytes: 10485760  # taille max 10 Mo avant rotation
-    backupCount: 5  # conserve 5 anciennes versions
-    level: DEBUG  # enregistre tous les niveaux jusqu’à DEBUG
-    filters: [perf_filter, no_error]  # applique filtres de performance et suppression des erreurs (évite doublons avec error.log)
+# ─────────────────────────────────────────────────────────────
+# HANDLERS
+# ─────────────────────────────────────────────────────────────
+handlers:
+  console:  # unique handler : affichage dans la console
+    class: logging.StreamHandler  # sortie standard (stdout)
+    formatter: standard  # utilise le format standard défini plus haut
+    level: WARNING  # niveau minimum (sera ajusté dynamiquement par main.py selon LOG_MODE)
+    filters: [perf_filter]  # applique le filtre de performance (désactive logs trop fréquents)
 
-  file_kpi:
-    class: logging.handlers.RotatingFileHandler  # fichier dédié aux journaux KPI
-    formatter: kpi  # format compact spécial KPI
-    filename: logs/kpi.log  # emplacement du journal KPI
-    maxBytes: 5242880  # taille max 5 Mo
-    backupCount: 3  # conserve 3 anciennes versions
-    level: INFO  # enregistre uniquement INFO et supérieur
-    filters: [perf_filter]  # filtre de performance actif
+# ─────────────────────────────────────────────────────────────
+# LOGGERS PAR MODULE
+# ─────────────────────────────────────────────────────────────
+loggers:
+  igt:  # logger racine de toute la suite Ultramotion
+    level: INFO  # niveau par défaut (modifiable en runtime)
+    handlers: [console]  # affiche uniquement sur la console (fichiers gérés par async_logging)
+    propagate: no  # empêche la propagation vers le logger racine Python
 
-  file_error:
-    class: logging.handlers.RotatingFileHandler  # fichier dédié aux erreurs critiques
-    formatter: standard  # format standard
-    filename: logs/error.log  # emplacement du fichier d’erreurs
-    maxBytes: 7340032  # taille max 7 Mo
-    backupCount: 3  # conserve 3 anciennes versions
-    level: ERROR  # capture uniquement les erreurs et exceptions
+  igt.receiver:  # module de réception (thread RX)
+    level: DEBUG  # détail utile pour débogage de flux RX
+    handlers: [console]  # console uniquement
+    propagate: no  # pas de remontée
 
-loggers:  # définition des loggers nommés par module
-  igt:  # logger principal
-    level: INFO  # niveau global
-    handlers: [console, file, file_error]  # envoie vers la console, le fichier principal et le fichier d’erreurs
-    propagate: no  # empêche la propagation vers le logger racine
-
-  igt.receiver:  # sous-module de réception (thread RX)
-    level: DEBUG  # niveau détaillé pour débogage
-    handlers: [console, file]  # console et fichier principal
-    propagate: no  # pas de propagation
-
-  igt.queues:  # module de gestion des files et buffers
+  igt.queues:  # gestion des files et buffers
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.gpu:  # module de traitement GPU
+  igt.gpu:  # traitements GPU
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.inference:  # module d’inférence IA
+  igt.inference:  # moteur d'inférence IA (D-FINE, MobileSAM)
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.slicer:  # module d’envoi vers 3D Slicer
+  igt.slicer:  # thread TX vers 3D Slicer
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.monitor:  # module de monitoring temps réel
+  igt.monitor:  # supervision et KPIs internes
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.kpi:  # logger spécialisé pour les métriques KPI
+  igt.kpi:  # logger dédié aux métriques (redirigé vers kpi.log par async_logging)
     level: INFO
-    handlers: [file_kpi]  # écrit uniquement dans kpi.log
+    handlers: [console]  # on garde console uniquement ici
     propagate: no
 
-  igt.service:  # composant de service principal (inférence, gateway)
+  igt.service:  # orchestration (gateway, detection, etc.)
     level: INFO
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
-  igt.types:  # typage et structures de données
-    level: DEBUG  # niveau détaillé (utile pour traçabilité des types)
-    handlers: [console, file]
-    propagate: no
-
-  igt.fsm:  # module de logique d’état et de visibilité
+  igt.types:  # structures et dataclasses
     level: DEBUG
-    handlers: [console, file]
-    propagate: no
-    
-  igt.queues.gpu_buffers:
-    level: DEBUG        # pour voir les allocations en détail
-    handlers: [console, file]
+    handlers: [console]
     propagate: no
 
+  igt.fsm:  # machine à états (visibility FSM)
+    level: DEBUG
+    handlers: [console]
+    propagate: no
 
-root:  # logger racine (par défaut)
-  level: WARNING  # niveau par défaut
-  handlers: [console, file_error]  # envoie uniquement les avertissements/erreurs vers console et fichier d’erreur
+  igt.queues.gpu_buffers:  # sous-module GPU buffers
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+
+  igt.slicer_server:  # serveur TX simulé (pyigtl)
+    level: INFO
+    handlers: [console]
+    propagate: no
+
+# ─────────────────────────────────────────────────────────────
+# LOGGER RACINE
+# ─────────────────────────────────────────────────────────────
+root:
+  level: WARNING  # niveau minimal par défaut (seulement warnings et erreurs)
+  handlers: [console]  # affiche uniquement dans la console

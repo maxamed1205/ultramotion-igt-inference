@@ -48,6 +48,8 @@ def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = N
     - Appelle stats_cb(fps) toutes les 2s si fourni.
     - Appelle event_cb('tx_client_connected', {...}) / ('tx_stopped', {...}) si fournis.
     """
+    print("[DEBUG] run_slicer_server() started")
+    LOG.info("[TX-SIM] run_slicer_server() started — debug check")
     try:
         import pyigtl  # type: ignore
     except Exception:
@@ -87,7 +89,7 @@ def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = N
 
             if item is None:
                 # nothing to send
-                time.sleep(0.05)
+                time.sleep(0.005)
             else:
                 mask, meta = item
                 # Send via pyigtl if available
@@ -98,8 +100,8 @@ def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = N
                     except Exception:
                         LOG.exception("pyigtl send failed; dropping message")
                 else:
-                    # Simulate send delay
-                    time.sleep(0.01)
+                    # Debug : afficher chaque envoi simulé
+                    LOG.info(f"[TX-SIM] Sent frame #{meta.get('frame_id', -1)} — mask {mask.shape}")
 
                 send_count += 1
                 sent_timestamps.append(now)

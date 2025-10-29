@@ -273,6 +273,7 @@ class ResultPacket:
     score: float
     state: StateLiteral
     meta: FrameMeta
+    bbox_xywh: Optional[Tuple[int, int, int, int]] = None
 
 
 @dataclass

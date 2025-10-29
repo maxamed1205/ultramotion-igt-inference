@@ -30,6 +30,15 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     Returns the started QueueListener which should be .stop()'ed on shutdown.  # retourne la file et le listener (à .stop() lors de l’arrêt)
     """
+    global _listener_obj, _log_queue  # accès global
+
+    # 🚫 Protection : empêche double initialisation
+    if _listener_obj is not None and _log_queue is not None:
+        logging.getLogger("igt.monitor").warning(
+            "Async logging already active — skipping reconfiguration."
+        )
+        return _log_queue, _listener_obj
+
     if log_dir is None:  # si aucun répertoire n’est fourni
         log_dir = "logs"  # valeur par défaut : "logs"
 
@@ -94,12 +103,45 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
         handler_err.setFormatter(std_formatter)  # format standard pour les erreurs
         listener_handlers.append(handler_err)  # ajoute le handler d’erreurs à la liste du listener
 
+
+    # 🧹 Supprime les handlers existants du logger "igt" et du root avant d’ajouter le QueueHandler
+    root_logger = logging.getLogger()
+    for h in list(root_logger.handlers):
+        root_logger.removeHandler(h)
+
+    target_logger = logging.getLogger(attach_to_logger)
+    for h in list(target_logger.handlers):
+        target_logger.removeHandler(h)
+
     listener = QueueListener(log_queue, *listener_handlers)  # crée le QueueListener avec tous les handlers de sortie
     listener.start()  # démarre le thread interne du QueueListener
 
-    global _log_queue, _listener_obj  # "globale" autoriser la modification d’une variable globale depuis l’intérieur d’une fonction,déclare l’utilisation des variables globales pour contrôle/diagnostic
     _log_queue = log_queue  # une copie de la référence dans une variable globale, ce qui permet à d’autres fonctions d’y accéder plus tard, mémorise la file globale
     _listener_obj = listener  # mémorise le listener global
+
+
+    # 🔥 Élimine tous les handlers précédents de la hiérarchie avant ajout du QueueHandler
+    mgr = logging.Logger.manager
+    for logger_name, logger_obj in list(mgr.loggerDict.items()):
+        # On ne garde que les vrais loggers (pas les PlaceHolder)
+        try:
+            if not isinstance(logger_obj, logging.Logger):
+                continue
+            if logger_name.startswith("igt"):
+                for h in list(logger_obj.handlers):
+                    logger_obj.removeHandler(h)
+        except Exception:
+            continue
+
+    # Nettoyage aussi du root logger
+    root_logger = logging.getLogger()
+    for h in list(root_logger.handlers):
+        try:
+            root_logger.removeHandler(h)
+        except Exception:
+            pass
+
+
 
     queue_handler = QueueHandler(log_queue)  # crée un QueueHandler qui poussera les logs dans la file centrale
 
@@ -135,8 +177,32 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
         except Exception:
             pass  # si l’accès au manager échoue, on continue sans bloquer
 
-    target_logger.addHandler(queue_handler)  # désormais, tous ses logs iront dans la file asynchrone
+    # ──────────────────────────────────────────────────────────────
+    # 🔗 Attache le QueueHandler à la hiérarchie de loggers (sans doublon)
+    # ──────────────────────────────────────────────────────────────
+    for h in list(target_logger.handlers):  # crée une copie de la liste des handlers du logger cible
+        if isinstance(h, QueueHandler):  # vérifie si le handler actuel est déjà un QueueHandler
+            target_logger.removeHandler(h)  # le retire pour éviter une double écriture asynchrone
+    target_logger.addHandler(queue_handler)  # attache le nouveau QueueHandler unique au logger cible
 
+    # 👉 Active la propagation pour les loggers enfants "igt.*" (évite duplication)
+    # Au lieu d'ajouter un QueueHandler à chaque enfant, on active propagate=True
+    # pour que les messages remontent vers le parent "igt" qui a le QueueHandler
+    prefix = (attach_to_logger + ".") if attach_to_logger else ""  # construit le préfixe hiérarchique (ex: "igt.")
+    for name, obj in list(logging.Logger.manager.loggerDict.items()):  # parcourt tous les loggers connus du gestionnaire
+        if name.startswith(prefix):  # ne traite que ceux appartenant à la hiérarchie ciblée
+            try:
+                child = logging.getLogger(name)  # récupère le logger enfant à partir de son nom
+                # ⚠️ IMPORTANT : On active propagate au lieu d'ajouter un handler
+                # Sinon chaque logger envoie à la queue → duplication !
+                child.propagate = True  # les messages remontent vers le parent "igt"
+            except Exception:  # capture toute erreur inattendue pour ne jamais interrompre la configuration
+                pass  # ignore silencieusement les exceptions (sécurité)
+
+
+    # ──────────────────────────────────────────────────────────────
+    # ⚙️ Ajustement des niveaux de log si nécessaire
+    # ──────────────────────────────────────────────────────────────
     try:
         root_logger = logging.getLogger()  # récupère le logger racine
         if target_logger is root_logger:  # si le logger cible est le root
@@ -146,8 +212,11 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
             if target_logger.level == 0:  # 0 signifie “pas de niveau défini”
                 target_logger.setLevel(logging.INFO)  # fixe à INFO pour garantir la remontée des KPI
     except Exception:
-        pass  # on ignore l’erreur silencieusement
+        pass  # on ignore toute erreur silencieusement (sécurité)
 
+    # ──────────────────────────────────────────────────────────────
+    # 🌐 Option : remplacer les handlers du root logger
+    # ──────────────────────────────────────────────────────────────
     if replace_root:  # si demandé par l’appelant
         root = logging.getLogger()  # récupère le logger racine
         for h in list(root.handlers):  # itère sur copie pour modifier en sécurité
