@@ -235,23 +235,10 @@ class HungarianMatcher(nn.Module):
                         else:
                             C_work[batch_idx, query_idx, offset + target_idx] = 1e6
         else:
-            # Legacy CPU path
-            C_cpu = C.cpu() if hasattr(C, 'cpu') else C
-            for i in range(k):
-                indices_k = (
-                    [linear_sum_assignment(c[i]) for i, c in enumerate(C_cpu.split(sizes, -1))]
-                    if i > 0
-                    else initial_indices
-                )
-                indices_list.append(
-                    [
-                        (torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64))
-                        for i, j in indices_k
-                    ]
-                )
-                for c, idx_k in zip(C.split(sizes, -1), indices_k):
-                    idx_k = np.stack(idx_k)
-                    c[:, idx_k] = 1e6
+            # Legacy CPU path - DEPRECATED: use_gpu_match=True by default
+            # Only kept for backward compatibility but should never be executed
+            raise RuntimeError("Legacy CPU path should not be executed with use_gpu_match=True. "
+                              "This indicates a configuration error.")
                     
         # Concatenate results for each batch
         final_indices = []

@@ -1,0 +1,595 @@
+{
+  "total_transfers": 65,
+  "critical": 0,
+  "medium": 18,
+  "acceptable": 27,
+  "legacy_fallbacks": 20,
+  "gpu_progress": 100.0,
+  "transfers": [
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 156,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 204,
+      "expression": ".detach()",
+      "context": "legacy_dead_code",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY DEAD CODE - Code jamais exécuté, pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 204,
+      "expression": ".item()",
+      "context": "legacy_dead_code",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY DEAD CODE - Code jamais exécuté, pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 208,
+      "expression": ".item()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 213,
+      "expression": ".detach()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 219,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 219,
+      "expression": ".numpy()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 268,
+      "expression": ".detach()",
+      "context": "legacy_dead_code",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY DEAD CODE - Code jamais exécuté, pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 268,
+      "expression": ".item()",
+      "context": "legacy_dead_code",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY DEAD CODE - Code jamais exécuté, pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 272,
+      "expression": ".item()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 279,
+      "expression": ".detach()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 299,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 299,
+      "expression": ".numpy()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 231,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 265,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 341,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 352,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 187,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "expression": ".numpy()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "expression": ".numpy()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "expression": ".cpu()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "expression": ".numpy()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "expression": ".detach()",
+      "context": "legacy_branch",
+      "conditional_context": "LEGACY_FALLBACK",
+      "severity": "🟡",
+      "recommendation": "LEGACY BRANCH - Fallback désactivé par défaut, pas critique"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 295,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 308,
+      "expression": ".to(\"cpu\")",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 309,
+      "expression": ".to(\"cpu\")",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 80,
+      "expression": ".item()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 153,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 153,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 153,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 415,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 425,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 446,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 447,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 792,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 794,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 162,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 163,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "expression": ".detach()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\automatic_mask_generator.py",
+      "line_num": 188,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\automatic_mask_generator.py",
+      "line_num": 190,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 211,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 211,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 211,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 212,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 212,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 212,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 213,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 213,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 213,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 218,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 218,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 218,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 219,
+      "expression": ".cpu()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 219,
+      "expression": ".numpy()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 219,
+      "expression": ".detach()",
+      "context": "exception_safety",
+      "conditional_context": "EXCEPTION_HANDLER",
+      "severity": "🟢",
+      "recommendation": "SAFETY - Exception handler, maintenir pour robustesse"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\Modeling\\tiny_vit_sam.py",
+      "line_num": 496,
+      "expression": ".item()",
+      "context": "production",
+      "conditional_context": "UNKNOWN",
+      "severity": "🟠",
+      "recommendation": "MEDIUM - vérifier si nécessaire, optimiser si possible"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 428,
+      "expression": ".numpy()",
+      "context": "memory_optimization",
+      "conditional_context": "LEGITIMATE_OPTIMIZATION",
+      "severity": "🟢",
+      "recommendation": "OPTIMIZATION - Pinned memory ou buffer allocation légitime"
+    }
+  ]
+}

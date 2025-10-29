@@ -190,6 +190,22 @@ class SamPredictor:
 
         if as_numpy:
             # ✅ Mode rétrocompatibilité — utilisé uniquement par orchestrator legacy
+            # 🚨 DEPRECATED: as_numpy=False par défaut pour pipeline GPU-resident
+            import time
+            import logging
+            LOG = logging.getLogger("igt.inference")
+            LOG.warning("🚨 MobileSAM legacy CPU mode (as_numpy=True) - performance degraded")
+            
+            try:
+                from core.monitoring.kpi import safe_log_kpi, format_kpi
+                safe_log_kpi(format_kpi({
+                    "ts": time.time(),
+                    "event": "sam_legacy_cpu_mode",
+                    "warning": "as_numpy=True should be avoided in production"
+                }))
+            except Exception:
+                pass
+                
             if return_low_res:
                 return (
                     m.detach().cpu().numpy(),

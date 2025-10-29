@@ -143,7 +143,9 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
                 full_image = None
 
         else:
-            # 🧩 Legacy CPU path (for backward compat)
+            # 🧩 Legacy CPU path (DEPRECATED: sam_as_numpy=False by default)
+            # Only executed when explicitly requested for visualization/export
+            LOG.warning("🚨 Legacy CPU path activated - performance degraded (sam_as_numpy=True)")
             try:
                 if hasattr(arr, "detach"):  # PyTorch tensor
                     if arr.ndim == 4 and arr.shape[0] == 1:

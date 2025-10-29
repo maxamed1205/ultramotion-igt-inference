@@ -422,8 +422,10 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                 try:
                     buf = ensure_pinned_buffer((1, 1, H, W))
                     # Try to obtain a numpy view into the CPU tensor memory and write there
+                    # NOTE: buf.numpy() is PINNED MEMORY optimization - not a GPU→CPU transfer
+                    # This creates a numpy view into pinned memory for fast CPU→GPU transfer
                     try:
-                        buf_np = buf.numpy()
+                        buf_np = buf.numpy()  # Pinned memory view (optimization, not transfer)
                         # Ensure source has the same shape as the buffer
                         src = img_proc
                         if src.shape != buf_np.shape:

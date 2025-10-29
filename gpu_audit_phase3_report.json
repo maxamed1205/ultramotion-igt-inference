@@ -1,0 +1,695 @@
+{
+  "summary": {
+    "total_transfers": 75,
+    "critical_transfers": 23,
+    "medium_transfers": 33,
+    "low_transfers": 19,
+    "files_scanned": 12,
+    "files_with_critical": 5,
+    "progress_percent": 0
+  },
+  "transfers": [
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 156,
+      "line_content": "frame_cpu = frame_mono.detach().to(\"cpu\", non_blocking=True)",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 204,
+      "line_content": "conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 204,
+      "line_content": "conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 208,
+      "line_content": "if (conf_tensor < conf_thresh).item():  # Une seule sync pour le booléen",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 213,
+      "line_content": "box_xyxy = boxes_xyxy[idx].detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 219,
+      "line_content": "return box_xyxy_f32.cpu().numpy(), conf",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 219,
+      "line_content": "return box_xyxy_f32.cpu().numpy(), conf",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 268,
+      "line_content": "conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 268,
+      "line_content": "conf = float(conf_tensor.detach().item())  # Sync seulement si mode legacy",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 272,
+      "line_content": "if (conf_tensor < conf_thresh).item():  # Une seule sync pour le booléen",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 279,
+      "line_content": "b = boxes[idx].detach()  # [cx, cy, w, h] in range [0, 1]",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 299,
+      "line_content": "return box_xyxy_f32.cpu().numpy(), conf",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\dfine_infer.py",
+      "line_num": 299,
+      "line_content": "return box_xyxy_f32.cpu().numpy(), conf",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 231,
+      "line_content": "F.softmax(target_corners / T, dim=1).detach(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 265,
+      "line_content": "Vectorized version to avoid GPU→CPU sync via .item() calls.\"\"\"",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 341,
+      "line_content": "num_boxes_go = torch.clamp(num_boxes_go / get_world_size(), min=1).item()",
+      "expression": ".item()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\dfine_criterion.py",
+      "line_num": 352,
+      "line_content": "num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 187,
+      "line_content": "C_cpu = C.cpu()",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "line_content": "indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "line_content": "indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "line_content": "indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 202,
+      "line_content": "indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\matcher.py",
+      "line_num": 239,
+      "line_content": "C_cpu = C.cpu() if hasattr(C, 'cpu') else C",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "line_content": "result = mask.astype(bool) if isinstance(mask, np.ndarray) else mask.detach().cpu().numpy().astype(bool)",
+      "expression": ".cpu()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "line_content": "result = mask.astype(bool) if isinstance(mask, np.ndarray) else mask.detach().cpu().numpy().astype(bool)",
+      "expression": ".numpy()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 106,
+      "line_content": "result = mask.astype(bool) if isinstance(mask, np.ndarray) else mask.detach().cpu().numpy().astype(bool)",
+      "expression": ".detach()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 131,
+      "line_content": "mask_t = torch.from_numpy(mask).to(device, non_blocking=True)",
+      "expression": "torch.from_numpy(",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 295,
+      "line_content": "return mask  # ne pas .detach() -> préserver graphe pour fine-tuning éventuel",
+      "expression": ".detach()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "line_content": "return mask.detach().cpu().numpy()",
+      "expression": ".cpu()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "line_content": "return mask.detach().cpu().numpy()",
+      "expression": ".numpy()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\inference_sam.py",
+      "line_num": 298,
+      "line_content": "return mask.detach().cpu().numpy()",
+      "expression": ".detach()",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 53,
+      "line_content": "req_device = \"cpu\"",
+      "expression": "device = \"cpu\"",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 306,
+      "line_content": "dfine = dfine.to(\"cpu\") if hasattr(dfine, \"to\") else dfine",
+      "expression": ".to(\"cpu\")",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 307,
+      "line_content": "sam = sam.to(\"cpu\") if hasattr(sam, \"to\") else sam",
+      "expression": ".to(\"cpu\")",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\model_loader.py",
+      "line_num": 308,
+      "line_content": "torch_device = torch.device(\"cpu\")",
+      "expression": "device = torch.device(\"cpu\")",
+      "context": "production",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 80,
+      "line_content": "conf_scalar = float(conf_t.item())  # Sync GPU→CPU pour scalar uniquement",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 151,
+      "line_content": "arr_np = arr[0].permute(1, 2, 0).detach().cpu().numpy()",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 151,
+      "line_content": "arr_np = arr[0].permute(1, 2, 0).detach().cpu().numpy()",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\engine\\orchestrator.py",
+      "line_num": 151,
+      "line_content": "arr_np = arr[0].permute(1, 2, 0).detach().cpu().numpy()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 415,
+      "line_content": "output_detach = output.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 425,
+      "line_content": "ref_points_initial = pre_bboxes.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 446,
+      "line_content": "ref_points_detach = inter_ref_bbox.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 447,
+      "line_content": "output_detach = output.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 731,
+      "line_content": "self, spatial_shapes=None, grid_size=0.05, dtype=torch.float32, device=\"cpu\"",
+      "expression": "device=\"cpu\"",
+      "context": "production",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 792,
+      "line_content": "content = enc_topk_memory.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\dfine_decoder.py",
+      "line_num": 794,
+      "line_content": "enc_topk_bbox_unact = enc_topk_bbox_unact.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 162,
+      "line_content": "upper_bound1 = (abs(up[0]) * abs(reg_scale)).item()",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 163,
+      "line_content": "upper_bound2 = (abs(up[0]) * abs(reg_scale) * 2).item()",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "line_content": "return four_lens.reshape(-1).detach(), weight_right.detach(), weight_left.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "line_content": "return four_lens.reshape(-1).detach(), weight_right.detach(), weight_left.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\d_fine\\arch\\utils.py",
+      "line_num": 354,
+      "line_content": "return four_lens.reshape(-1).detach(), weight_right.detach(), weight_left.detach()",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\automatic_mask_generator.py",
+      "line_num": 188,
+      "line_content": "\"predicted_iou\": mask_data[\"iou_preds\"][idx].item(),",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\automatic_mask_generator.py",
+      "line_num": 190,
+      "line_content": "\"stability_score\": mask_data[\"stability_score\"][idx].item(),",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 195,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 195,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 195,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 196,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 196,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 196,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 197,
+      "line_content": "low.detach().cpu().numpy(),",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 197,
+      "line_content": "low.detach().cpu().numpy(),",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 197,
+      "line_content": "low.detach().cpu().numpy(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 202,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 202,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 202,
+      "line_content": "m.detach().cpu().numpy(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 203,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".cpu()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 203,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+      "line_num": 203,
+      "line_content": "iou.detach().cpu().numpy(),",
+      "expression": ".detach()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\inference\\MobileSAM\\mobile_sam\\Modeling\\tiny_vit_sam.py",
+      "line_num": 496,
+      "line_content": "dpr = [x.item() for x in torch.linspace(0, drop_path_rate,",
+      "expression": ".item()",
+      "context": "production",
+      "severity": "🟠",
+      "recommendation": "Optimiser si possible - utiliser torch.no_grad()"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 426,
+      "line_content": "buf_np = buf.numpy()",
+      "expression": ".numpy()",
+      "context": "production",
+      "severity": "🔴",
+      "recommendation": "CRITIQUE - éliminer ou remplacer par GPU-resident"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 465,
+      "line_content": "t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)",
+      "expression": "torch.from_numpy(",
+      "context": "production",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 479,
+      "line_content": "t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)",
+      "expression": "torch.from_numpy(",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 490,
+      "line_content": "t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)",
+      "expression": "torch.from_numpy(",
+      "context": "production",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 502,
+      "line_content": "t = torch.from_numpy(arr_c)",
+      "expression": "torch.from_numpy(",
+      "context": "production",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    },
+    {
+      "file_path": "src\\core\\preprocessing\\cpu_to_gpu.py",
+      "line_num": 652,
+      "line_content": "tensor = torch.from_numpy(np.ascontiguousarray(tensor))",
+      "expression": "torch.from_numpy(",
+      "context": "test/debug",
+      "severity": "🟢",
+      "recommendation": "Acceptable - pas d'action requise"
+    }
+  ],
+  "critical_files": [
+    "src\\core\\inference\\dfine_infer.py",
+    "src\\core\\inference\\d_fine\\matcher.py",
+    "src\\core\\inference\\engine\\orchestrator.py",
+    "src\\core\\inference\\MobileSAM\\mobile_sam\\predictor.py",
+    "src\\core\\preprocessing\\cpu_to_gpu.py"
+  ]
+}

@@ -303,6 +303,8 @@ def initialize_models(model_paths: Dict[str, str], device: str = "cuda") -> Dict
                     LOG.debug("BFloat16 cast failed")
         except Exception:
             LOG.exception("GPU transfer failed, falling back to CPU models")
+            # Emergency CPU fallback - log warning for production monitoring
+            LOG.warning("🚨 GPU-resident mode failed - falling back to CPU (degraded performance)")
             dfine = dfine.to("cpu") if hasattr(dfine, "to") else dfine
             sam = sam.to("cpu") if hasattr(sam, "to") else sam
             torch_device = torch.device("cpu")
