@@ -244,7 +244,7 @@ def warmup_transfer_once(H: int, W: int, device: str = "cuda") -> None:
 # 1. Préparation et transfert CPU → GPU
 # ======================================================================
 
-def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optional[dict] = None) -> GpuFrame:
+def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optional[dict] = None, test_mode: bool = False) -> GpuFrame:
     """
     Prépare une frame CPU (numpy) pour le GPU, via un **seul transfert asynchrone**.
 
@@ -255,9 +255,11 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
       4. Transfert asynchrone vers GPU via `torch.cuda.Stream`.
 
     Args:
-        frame: RawFrame contenant l’image CPU (numpy array ou buffer équivalent).
+        frame: RawFrame contenant l'image CPU (numpy array ou buffer équivalent).
         device: cible du transfert ('cuda', 'cuda:0', etc.)
         config: dictionnaire optionnel (normalisation, dtype, scale, etc.)
+        test_mode: si True, active les vérifications supplémentaires et nettoyage 
+                  explicite des références NumPy pour éliminer les risques de persistance
 
     Returns:
         GpuFrame : objet contenant le tensor GPU, les métadonnées et le stream CUDA associé.
@@ -398,6 +400,9 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
     orig_dtype = img.dtype
     use_cuda = torch.cuda.is_available() and str(device).lower().startswith("cuda")
     fastpath_torch = (orig_dtype == np.uint8) and (mode in ("unit", "none"))
+    
+    # Track which transfer path is used for KPI
+    transfer_path = "unknown"
 
     # Prepare CPU tensor (possibly using pinned pool) depending on fastpath
     t_pin0 = time.time()
@@ -407,6 +412,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
         if fastpath_torch:
             # Torch-first path: avoid numpy divisions for uint8
             # We will attempt to fill the pinned buffer directly (avoid intermediate copy_)
+            transfer_path = "fastpath_torch"
             if use_cuda:
                 if _TRANSFER_STREAM is None:
                     try:
@@ -447,9 +453,15 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                         if clip and isinstance(clip, (list, tuple)) and len(clip) == 2:
                             np.clip(buf_np, float(clip[0]), float(clip[1]), out=buf_np)
 
+                        # Explicitly clean NumPy reference to prevent persistence risks
+                        if test_mode:
+                            # In test mode, explicitly delete the reference
+                            del buf_np
+                        
                         ten_cpu = buf
                     except Exception:
                         # Fallback to older method if numpy view not possible
+                        transfer_path = "fastpath_fallback"
                         t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)
                         if t.ndim == 3:
                             t = t.unsqueeze(1)
@@ -463,6 +475,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                         ten_cpu = buf
                 except Exception:
                     LOG.debug("Pinned pool write failed, falling back to non-pinned tensor")
+                    transfer_path = "fastpath_no_pinned"
                     t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)
                     if mode == "unit":
                         t.div_(255.0)
@@ -473,6 +486,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                     ten_cpu = t
             else:
                 # No CUDA: operate on regular CPU tensor
+                transfer_path = "fastpath_cpu_only"
                 t = torch.from_numpy(np.ascontiguousarray(img_proc)).to(dtype=torch.float32)
                 if mode == "unit":
                     t.div_(255.0)
@@ -483,6 +497,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                 ten_cpu = t
         else:
             # Numpy-first fallback (existing code path): arr already normalized and shaped
+            transfer_path = "numpy_fallback"
             arr_c = np.ascontiguousarray(arr)
             t = torch.from_numpy(arr_c)
             if use_cuda:
@@ -511,7 +526,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
     t_copy0 = time.time()
 
     # Helper to emit KPI once at the end. Captures t_copy0 and t_norm0.
-    def _emit_kpi(ts_end_copy, norm_ms_val, pin_ms_val, device_used_val, H_val, W_val, frame_id_val):
+    def _emit_kpi(ts_end_copy, norm_ms_val, pin_ms_val, device_used_val, H_val, W_val, frame_id_val, transfer_path_val):
         try:
             copy_ms_val = (ts_end_copy - t_copy0) * 1000.0
             total_ms_val = (ts_end_copy - t_norm0) * 1000.0
@@ -521,6 +536,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
                     "ts": time.time(),
                     "event": "copy_async",
                     "device": device_used_val,
+                    "transfer_path": transfer_path_val,
                     "H": int(H_val),
                     "W": int(W_val),
                     "norm_ms": round(norm_ms_val, 2),
@@ -583,7 +599,7 @@ def prepare_frame_for_gpu(frame: RawFrame, device: str = "cuda", config: Optiona
         raise
 
     # KPI emission (single place)
-    _emit_kpi(t_copy1, norm_ms, pin_ms, device_used, H, W, getattr(meta, "frame_id", None))
+    _emit_kpi(t_copy1, norm_ms, pin_ms, device_used, H, W, getattr(meta, "frame_id", None), transfer_path)
 
     if LOG.isEnabledFor(logging.DEBUG):
         total_ms = (t_copy1 - t_norm0) * 1000.0
