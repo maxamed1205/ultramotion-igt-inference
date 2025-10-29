@@ -19,15 +19,18 @@ def run_segmentation(
 ) -> Optional[Any]:
     """Exécute MobileSAM sur l'image complète avec une bbox et retourne le mask binaire.
     
+    ⚠️ as_numpy=True doit être réservé à la visualisation ou à l'export Slicer.
+    En production, utiliser as_numpy=False pour maintenir le flux GPU-resident.
+    
     Args:
         sam_model: Le modèle SAM ou SamPredictor
         image: Image d'entrée (numpy array ou tensor)
         bbox_xyxy: Bounding box au format [x1, y1, x2, y2]
-        as_numpy: Si True, retourne numpy array (mode legacy).
-                 Si False, retourne tensor GPU (mode GPU-resident).
+        as_numpy: Si True, retourne numpy array (mode legacy/visualization).
+                 Si False, retourne tensor GPU (mode GPU-resident production).
     
     Returns:
-        Mask binaire (numpy array si as_numpy=True, tensor si as_numpy=False)
+        Mask binaire (numpy array si as_numpy=True, tensor GPU si as_numpy=False)
     """
     if sam_model is None or image is None:
         return None
@@ -35,6 +38,10 @@ def run_segmentation(
     if torch is None:
         LOG.warning("torch unavailable; skipping segmentation")
         return None
+
+    # Avertissement pour usage as_numpy en production
+    if as_numpy:
+        LOG.warning("⚠️ as_numpy=True triggers CPU conversion — reserved for visualization or export only.")
 
     has_predictor_api = hasattr(sam_model, 'set_image') and hasattr(sam_model, 'predict')
 
@@ -93,22 +100,63 @@ def run_segmentation(
                 mask = masks[0]
                 LOG.debug(f"SAM prediction successful: mask shape={mask.shape}, score={scores[0] if len(scores) > 0 else 'N/A'}")
                 
+                # Mode visualisation (legacy)
                 if as_numpy:
-                    return mask.astype(bool)
+                    LOG.debug("Returning SAM mask as numpy (CPU) — visualization mode")
+                    result = mask.astype(bool) if isinstance(mask, np.ndarray) else mask.detach().cpu().numpy().astype(bool)
+                    
+                    # KPI instrumentation
+                    try:
+                        from core.monitoring.kpi import safe_log_kpi, format_kpi
+                        safe_log_kpi(format_kpi({
+                            "event": "sam_output",
+                            "as_numpy": int(as_numpy),
+                            "device": "cpu",
+                            "shape": str(getattr(result, "shape", None)),
+                        }))
+                    except Exception:
+                        LOG.debug("KPI sam_output skipped")
+                    
+                    return result
+
+                # Mode production GPU-resident
+                if isinstance(mask, np.ndarray):
+                    # Déterminer device à partir du modèle SAM
+                    try:
+                        model = getattr(sam_model, 'model', sam_model)
+                        device = next(model.parameters()).device
+                    except Exception:
+                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    # Conversion directe vers GPU
+                    mask_t = torch.from_numpy(mask).to(device, non_blocking=True)
+                    
+                    # KPI instrumentation
+                    try:
+                        from core.monitoring.kpi import safe_log_kpi, format_kpi
+                        safe_log_kpi(format_kpi({
+                            "event": "sam_output",
+                            "as_numpy": int(as_numpy),
+                            "device": str(device),
+                            "shape": str(mask_t.shape),
+                        }))
+                    except Exception:
+                        LOG.debug("KPI sam_output skipped")
+                    
+                    return mask_t
                 else:
-                    # Mode GPU-resident: garde le tensor sur GPU
-                    if isinstance(mask, np.ndarray):
-                        # Détection du device du modèle
-                        try:
-                            model = getattr(sam_model, 'model', sam_model)
-                            device = next(model.parameters()).device
-                        except Exception:
-                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                        
-                        mask_t = torch.from_numpy(mask).to(device)
-                        return mask_t > 0.5
-                    else:
-                        return mask  # déjà tensor GPU
+                    # KPI instrumentation
+                    try:
+                        from core.monitoring.kpi import safe_log_kpi, format_kpi
+                        safe_log_kpi(format_kpi({
+                            "event": "sam_output",
+                            "as_numpy": int(as_numpy),
+                            "device": str(getattr(mask, "device", "cpu")),
+                            "shape": str(getattr(mask, "shape", None)),
+                        }))
+                    except Exception:
+                        LOG.debug("KPI sam_output skipped")
+                    
+                    return mask  # déjà tensor GPU
             else:
                 LOG.warning("SAM predict returned no masks")
                 return None
@@ -123,7 +171,19 @@ def run_segmentation(
 
 
 def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray, as_numpy: bool = False) -> Optional[Any]:
-    """Legacy SAM inference for ROI-based segmentation (original implementation)."""
+    """Legacy SAM inference for ROI-based segmentation (original implementation).
+    
+    ⚠️ as_numpy=True doit être réservé à la visualisation ou à l'export Slicer.
+    En production, utiliser as_numpy=False pour maintenir le flux GPU-resident.
+    
+    Args:
+        sam_model: Le modèle SAM 
+        roi: ROI numpy array 
+        as_numpy: Si True, retourne numpy array (visualization). Si False, tensor GPU.
+        
+    Returns:
+        Mask binaire (numpy array si as_numpy=True, tensor GPU si as_numpy=False)
+    """
     if sam_model is None or roi is None:
         return None
 
@@ -230,15 +290,12 @@ def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray, as_numpy: bool = F
             pass
 
         if hasattr(mask, "detach"):
-            # 🚀 Nouveau chemin GPU-resident
+            # GPU-resident
             if not as_numpy:
-                return mask.detach()  # reste sur GPU (pas de .cpu())
+                return mask  # ne pas .detach() -> préserver graphe pour fine-tuning éventuel
             else:
-                # mode rétrocompatibilité
-                try:
-                    m = mask.detach().cpu().numpy()
-                except Exception:
-                    return None
+                LOG.debug("SAM legacy mode: exporting mask to numpy (CPU)")
+                return mask.detach().cpu().numpy()
         else:
             # non-torch : fallback numpy
             try:
