@@ -100,6 +100,7 @@ class SamPredictor:
         multimask_output: bool = True,
         return_logits: bool = False,
         as_numpy: bool = False,
+        return_low_res: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Predict masks for the given input prompts, using the currently set image.
@@ -125,6 +126,8 @@ class SamPredictor:
             instead of a binary mask.
           as_numpy (bool): If true, returns numpy arrays (legacy mode). If false,
             returns torch tensors for GPU-resident operation.
+          return_low_res (bool): If true, returns low resolution masks (default).
+            If false, skips low_res return for memory optimization in inference.
 
         Returns:
           (np.ndarray): The output masks in CxHxW format, where C is the
@@ -133,7 +136,7 @@ class SamPredictor:
             predictions for the quality of each mask.
           (np.ndarray): An array of shape CxHxW, where C is the number
             of masks and H=W=256. These low resolution logits can be passed to
-            a subsequent iteration as mask input.
+            a subsequent iteration as mask input. Only returned if return_low_res=True.
         """
         if not self.is_image_set:
             raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
@@ -177,23 +180,37 @@ class SamPredictor:
                 "ts": time.time(),
                 "event": "sam_predict_output",
                 "as_numpy": int(as_numpy),
+                "return_low_res": int(return_low_res),
                 "mask_device": str(m.device),
                 "iou_device": str(iou.device),
-                "low_device": str(low.device),
+                "low_device": str(low.device) if return_low_res else "skipped",
             }))
         except Exception:
             pass
 
         if as_numpy:
             # ✅ Mode rétrocompatibilité — utilisé uniquement par orchestrator legacy
-            return (
-                m.detach().cpu().numpy(),
-                iou.detach().cpu().numpy(),
-                low.detach().cpu().numpy(),
-            )
+            if return_low_res:
+                return (
+                    m.detach().cpu().numpy(),
+                    iou.detach().cpu().numpy(),
+                    low.detach().cpu().numpy(),
+                )
+            else:
+                # Optimisation mémoire: pas de low_res en mode legacy
+                return (
+                    m.detach().cpu().numpy(),
+                    iou.detach().cpu().numpy(),
+                    None,  # low_res_masks omis pour économie mémoire
+                )
 
         # 🚀 Nouveau mode GPU-resident
-        return (m, iou, low)
+        if return_low_res:
+            return (m, iou, low)
+        else:
+            # Optimisation mémoire: libérer low_res et ne pas le retourner
+            del low  # Libération explicite pour économie GPU
+            return (m, iou, None)
 
     @torch.no_grad()
     def predict_torch(
