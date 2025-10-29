@@ -85,11 +85,12 @@ class IGTGateway:
         self.supervise_interval_s: float = config.supervise_interval_s  # intervalle (s) entre deux cycles de supervision
 
         # --- Gestion des threads
-        self._stop_event: threading.Event = threading.Event()  # signal d’arrêt partagé entre tous les threads (permet un arrêt propre et coordonné)
+        self._stop_event: threading.Event = threading.Event()  # signal d'arrêt partagé entre tous les threads (permet un arrêt propre et coordonné)
+        self._tx_ready: threading.Event = threading.Event()    # 🔬 OPTIMISATION : signal Event pour réveiller instantanément le thread TX quand une frame est disponible dans _outbox
         self._rx_thread: Optional[threading.Thread] = None     # thread de réception des images et poses (depuis PlusServer)
-        self._tx_thread: Optional[threading.Thread] = None     # thread d’envoi des résultats (vers 3D Slicer)
+        self._tx_thread: Optional[threading.Thread] = None     # thread d'envoi des résultats (vers 3D Slicer)
         self._supervisor_thread: Optional[threading.Thread] = None  # thread de supervision (surveille débit, latence, état des threads)
-        self._running: bool = False                            # indicateur global d’état du service (True = threads actifs)
+        self._running: bool = False                            # indicateur global d'état du service (True = threads actifs)
 
         # --- Buffers internes (queues adaptatives)
         self._mailbox: AdaptiveDeque[RawFrame] = AdaptiveDeque(maxlen=2)  # buffer d’entrée à faible latence (RawFrame brutes depuis PlusServer)
@@ -168,10 +169,11 @@ class IGTGateway:
 
         tx_args = (  # arguments passés au thread TX lors de sa création
             self._outbox,            # file de sortie contenant les masques et métadonnées à envoyer
-            self._stop_event,        # signal d’arrêt partagé
+            self._stop_event,        # signal d'arrêt partagé
             self.slicer_port,        # port de destination pour 3D Slicer
             self.update_tx_stats,    # fonction de rappel pour mettre à jour les statistiques TX
-            self.events.emit,        # émetteur d’événements (notifications, erreurs)
+            self.events.emit,        # émetteur d'événements (notifications, erreurs)
+            self._tx_ready,          # 🔬 OPTIMISATION : Event pour signaler la disponibilité de frames dans _outbox
         )
 
         self._rx_thread = threading.Thread(
@@ -329,6 +331,9 @@ class IGTGateway:
                 pass  # Si l’injection échoue (métadonnées manquantes ou stats indisponibles), on ignore silencieusement.
 
             self._outbox.append((mask_array, meta))  # Empile le couple (masque, métadonnées) dans la file de sortie.
+            
+            # 🔬 OPTIMISATION : Signaler au thread TX qu'une frame est disponible (réveil instantané)
+            self._tx_ready.set()
 
             # --- Bloc de marquage TX pour calcul de latence RX→TX ---
             try:

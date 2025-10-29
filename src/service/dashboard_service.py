@@ -147,6 +147,9 @@ class MetricsCollector:
             "latency_rxtx_avg": aggregated.get("latency_rxtx_avg", 0.0),
             "latency_rxtx_last": aggregated.get("latency_rxtx_last", 0.0),
             
+            # Détails des latences par frame (pour le graphique)
+            "latency_details": aggregated.get("latency_details", {}),
+            
             # KPI globaux (depuis kpi.log)
             "fps_rx_kpi": aggregated.get("fps_rx_kpi", 0.0),
             "latency_kpi": aggregated.get("latency_kpi", 0.0),
@@ -254,8 +257,8 @@ class MetricsCollector:
                         if ts:
                             rx_t[fid] = ts
                 
-                # PROC - chercher "Processed frame #XXX" ou "Processed frame —XXX"
-                elif "[PROC-SIM]" in line and "Processed frame" in line:
+                # PROC - chercher "Processing frame #XXX" ou "Processing frame —XXX"
+                elif "[PROC-SIM]" in line and "Processing frame" in line:
                     m = re.search(r"frame [#—](\d+)", line)
                     if m:
                         fid = int(m.group(1))
@@ -280,6 +283,9 @@ class MetricsCollector:
             # Calcul des latences RX→PROC→TX
             latencies = self._compute_latencies_full(rx_t, proc_t, tx_t)
             
+            # Calculer les latences par frame pour le graphique
+            latency_details = self._compute_latency_per_frame(rx_t, proc_t, tx_t)
+            
             # Synchro TX/PROC
             sync_txproc = round(100 * len(tx) / len(proc), 1) if proc else 0.0
             
@@ -300,6 +306,7 @@ class MetricsCollector:
                 "latency_proctx_last": latencies["proctx_last"],
                 "latency_rxtx_avg": latencies["rxtx_avg"],
                 "latency_rxtx_last": latencies["rxtx_last"],
+                "latency_details": latency_details,  # Nouveau : détails par frame
             }
         except Exception as e:
             LOG.debug(f"Could not parse pipeline log: {e}")
@@ -346,6 +353,38 @@ class MetricsCollector:
             "proctx_last": round(proctx_vals[-1], 1) if proctx_vals else 0.0,
             "rxtx_avg": round(sum(rxtx_vals) / len(rxtx_vals), 1) if rxtx_vals else 0.0,
             "rxtx_last": round(rxtx_vals[-1], 1) if rxtx_vals else 0.0,
+        }
+    
+    def _compute_latency_per_frame(self, rx_t: Dict, proc_t: Dict, tx_t: Dict) -> Dict:
+        """Calcule les latences par frame pour le graphique"""
+        frames = []
+        rxproc = []
+        proctx = []
+        rxtx = []
+        
+        # Prendre toutes les frames qui ont au moins RX et PROC
+        all_frames = sorted(set(rx_t.keys()) & set(proc_t.keys()))
+        
+        for fid in all_frames:
+            frames.append(fid)
+            
+            # RX→PROC (toujours disponible pour ces frames)
+            rxproc_lat = (proc_t[fid] - rx_t[fid]) * 1000.0 if fid in proc_t and fid in rx_t else None
+            rxproc.append(round(rxproc_lat, 2) if rxproc_lat is not None and rxproc_lat >= 0 else None)
+            
+            # PROC→TX (peut être manquant)
+            proctx_lat = (tx_t[fid] - proc_t[fid]) * 1000.0 if fid in tx_t and fid in proc_t else None
+            proctx.append(round(proctx_lat, 2) if proctx_lat is not None and proctx_lat >= 0 else None)
+            
+            # RX→TX (peut être manquant)
+            rxtx_lat = (tx_t[fid] - rx_t[fid]) * 1000.0 if fid in tx_t and fid in rx_t else None
+            rxtx.append(round(rxtx_lat, 2) if rxtx_lat is not None and rxtx_lat >= 0 else None)
+        
+        return {
+            "frames": frames[-100:],  # Dernières 100 frames pour ne pas surcharger
+            "rxproc": rxproc[-100:],
+            "proctx": proctx[-100:],
+            "rxtx": rxtx[-100:],
         }
     
     def _compute_latencies_simple(self, proc_t: Dict, tx_t: Dict) -> Dict[str, float]:
@@ -747,6 +786,7 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             <div id="fps-chart" style="height: 300px;"></div>
             <div id="latency-chart" style="height: 300px; margin-top: 20px;"></div>
             <div id="gpu-chart" style="height: 300px; margin-top: 20px;"></div>
+            <div id="latency-per-frame-chart" style="height: 400px; margin-top: 20px;"></div>
         </div>
         
         <div class="footer">
@@ -789,9 +829,19 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             margin: {{ t: 40, r: 20, b: 40, l: 50 }}
         }};
         
+        const latencyPerFrameLayout = {{
+            title: 'Latences Inter-Étapes par Frame',
+            xaxis: {{ title: 'Numéro de Frame' }},
+            yaxis: {{ title: 'Latence (ms)', rangemode: 'tozero' }},
+            margin: {{ t: 40, r: 20, b: 40, l: 50 }},
+            showlegend: true,
+            legend: {{ x: 0.02, y: 0.98 }}
+        }};
+        
         Plotly.newPlot('fps-chart', [], fpsLayout);
         Plotly.newPlot('latency-chart', [], latencyLayout);
         Plotly.newPlot('gpu-chart', [], gpuLayout);
+        Plotly.newPlot('latency-per-frame-chart', [], latencyPerFrameLayout);
         
         // Handle WebSocket messages
         ws.onmessage = function(event) {{
@@ -878,6 +928,44 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             Plotly.react('gpu-chart', [
                 {{ x: timestamps, y: gpuData, name: 'GPU', type: 'scatter', mode: 'lines+markers', line: {{ color: '#8b5cf6' }}, fill: 'tozeroy' }}
             ], gpuLayout);
+            
+            // Update latency per frame chart
+            if (data.latency_details && data.latency_details.frames) {{
+                const frames = data.latency_details.frames;
+                const rxproc = data.latency_details.rxproc;
+                const proctx = data.latency_details.proctx;
+                const rxtx = data.latency_details.rxtx;
+                
+                Plotly.react('latency-per-frame-chart', [
+                    {{ 
+                        x: frames, 
+                        y: rxproc, 
+                        name: 'RX → PROC', 
+                        type: 'scatter', 
+                        mode: 'lines+markers', 
+                        line: {{ color: '#10b981', width: 2 }},
+                        marker: {{ size: 4 }}
+                    }},
+                    {{ 
+                        x: frames, 
+                        y: proctx, 
+                        name: 'PROC → TX', 
+                        type: 'scatter', 
+                        mode: 'lines+markers', 
+                        line: {{ color: '#3b82f6', width: 2 }},
+                        marker: {{ size: 4 }}
+                    }},
+                    {{ 
+                        x: frames, 
+                        y: rxtx, 
+                        name: 'RX → TX (total)', 
+                        type: 'scatter', 
+                        mode: 'lines+markers', 
+                        line: {{ color: '#f59e0b', width: 2 }},
+                        marker: {{ size: 4 }}
+                    }}
+                ], latencyPerFrameLayout);
+            }}
         }}
     </script>
 </body>

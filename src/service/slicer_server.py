@@ -32,7 +32,7 @@ Il n’est plus importé ni exécuté dans la version actuelle.
 This module tries to use `pyigtl` when available; otherwise it provides a
 placeholder that consumes the outbox and simulates sends while reporting fps.
 """
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 import time
 import logging
 import numpy as np
@@ -40,13 +40,21 @@ import numpy as np
 LOG = logging.getLogger("igt.slicer_server")
 
 
-def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = None, event_cb: Optional[Callable] = None) -> None:
+def run_slicer_server(
+    outbox,
+    stop_event,
+    port,
+    stats_cb: Optional[Callable] = None,
+    event_cb: Optional[Callable] = None,
+    tx_ready: Optional[Any] = None  # 🔬 OPTIMISATION : Event signalant qu'une frame est disponible dans outbox
+) -> None:
     """Thread TX : serveur IGTLink pour Slicer.
 
     - Lit les masques dans outbox.
     - Émet IMAGE (labelmap) vers Slicer.
     - Appelle stats_cb(fps) toutes les 2s si fourni.
     - Appelle event_cb('tx_client_connected', {...}) / ('tx_stopped', {...}) si fournis.
+    - Si tx_ready est fourni, utilise wait() pour un réveil instantané au lieu de polling.
     """
     print("[DEBUG] run_slicer_server() started")
     LOG.info("[TX-SIM] run_slicer_server() started — debug check")
@@ -81,17 +89,36 @@ def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = N
     while not stop_event.is_set():
         now = time.time()
         try:
+            # 🔬 OPTIMISATION : Attendre signal Event au lieu de polling avec sleep()
+            if tx_ready is not None:
+                # Mode optimisé : wait() bloque jusqu'à ce qu'une frame soit disponible
+                if not tx_ready.wait(timeout=0.01):
+                    continue  # Timeout → revérifier stop_event
+                tx_ready.clear()  # Reset l'event pour la prochaine frame
+            
+            # 🔬 INSTRUMENTATION : Timestamp AVANT lecture outbox
+            t_start = time.time()
+            
             # Try to consume one item from outbox
             try:
                 item = outbox.popleft()
             except Exception:
                 item = None
+            
+            # 🔬 INSTRUMENTATION : Timestamp APRÈS lecture outbox
+            t_after_read = time.time()
 
             if item is None:
-                # nothing to send
-                time.sleep(0.005)
+                # nothing to send (seulement si pas d'Event ou timeout)
+                if tx_ready is None:
+                    time.sleep(0.005)  # Fallback polling si pas d'Event
+                continue
             else:
                 mask, meta = item
+                
+                # 🔬 INSTRUMENTATION : Timestamp AVANT sérialisation/envoi
+                t_before_send = time.time()
+                
                 # Send via pyigtl if available
                 if pyigtl and server:
                     try:
@@ -101,7 +128,20 @@ def run_slicer_server(outbox, stop_event, port, stats_cb: Optional[Callable] = N
                         LOG.exception("pyigtl send failed; dropping message")
                 else:
                     # Debug : afficher chaque envoi simulé
-                    LOG.info(f"[TX-SIM] Sent frame #{meta.get('frame_id', -1)} — mask {mask.shape}")
+                    pass  # Log déplacé après pour mesurer la vraie latence
+                
+                # 🔬 INSTRUMENTATION : Timestamp APRÈS envoi
+                t_after_send = time.time()
+                
+                # 🔬 LOG avec détails de timing
+                t_read = (t_after_read - t_start) * 1000  # ms
+                t_send = (t_after_send - t_before_send) * 1000  # ms
+                t_total = (t_after_send - t_start) * 1000  # ms
+                
+                LOG.info(
+                    f"[TX-SIM] Sent frame #{meta.get('frame_id', -1):03d} "
+                    f"| read={t_read:.2f}ms send={t_send:.2f}ms total={t_total:.2f}ms"
+                )
 
                 send_count += 1
                 sent_timestamps.append(now)

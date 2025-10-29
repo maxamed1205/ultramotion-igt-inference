@@ -4,6 +4,15 @@ avec génération de frames simulées à 100 Hz (toutes les 10 ms),
 traitement local (seuillage simple) et envoi simulé via run_slicer_server().
 """
 
+# ──────────────────────────────────────────────
+#  Optimisation NumPy : limiter à 1 thread OMP
+# ──────────────────────────────────────────────
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import sys
 import time
 import threading
@@ -56,11 +65,21 @@ LOG = logging.getLogger("igt.gateway.test")
 # ──────────────────────────────────────────────
 #  Simulateur RX (frames)
 # ──────────────────────────────────────────────
-def simulate_frame_source(gateway: IGTGateway, stop_event: threading.Event, fps: int = 100):
+def simulate_frame_source(
+    gateway: IGTGateway,
+    stop_event: threading.Event,
+    frame_ready: threading.Event,  # ← Nouveau paramètre pour signaler frames disponibles
+    fps: int = 100
+):
     """Génère des RawFrame toutes les 10 ms et les injecte dans la vraie pipeline."""
     frame_id = 0
     interval = 1.0 / fps
     LOG.info(f"[RX-SIM] Frame generator started at {fps} Hz")
+
+    # ──────────────────────────────────────────────
+    # Horloge compensée : garantit 10.0ms ±0.1ms
+    # ──────────────────────────────────────────────
+    next_frame_time = time.perf_counter()
 
     while not stop_event.is_set():
         img = (np.random.rand(512, 512) * 255).astype(np.uint8)
@@ -76,27 +95,46 @@ def simulate_frame_source(gateway: IGTGateway, stop_event: threading.Event, fps:
             device_name="Image",
         )
         frame = RawFrame(image=img, meta=meta)
+        LOG.info(f"[RX-SIM] Generated frame #{frame_id:03d}")  # ← Log AVANT injection (timestamp = création)
         gateway._inject_frame(frame)
-        LOG.info(f"[RX-SIM] Generated frame #{frame_id:03d}")
+        frame_ready.set()  # ← Signal : "une frame est dispo !"
         frame_id += 1
-        time.sleep(interval)
+
+        # ──────────────────────────────────────────────
+        # Sleep compensé : attend jusqu'à next_frame_time
+        # ──────────────────────────────────────────────
+        next_frame_time += interval
+        now = time.perf_counter()
+        sleep_duration = next_frame_time - now
+        if sleep_duration > 0:
+            time.sleep(sleep_duration)
+        # Si on est en retard (sleep_duration < 0), on continue immédiatement
 
     LOG.info("[RX-SIM] Generator stopped.")
 
 # ──────────────────────────────────────────────
 #  Traitement PROC (seuillage)
 # ──────────────────────────────────────────────
-def simulate_processing(gateway: IGTGateway, stop_event: threading.Event):
+def simulate_processing(
+    gateway: IGTGateway,
+    stop_event: threading.Event,
+    frame_ready: threading.Event  # ← Nouveau paramètre pour attendre les frames
+):
     """Lit la mailbox, applique un seuillage, envoie vers outbox via send_mask()."""
     LOG.info("[PROC-SIM] Thread started (simple thresholding)")
     while not stop_event.is_set():
-        if len(gateway._mailbox) == 0:
-            time.sleep(0.0005)
-            continue
+        # Attendre qu'une frame soit disponible (timeout 10ms pour éviter blocage infini)
+        if not frame_ready.wait(timeout=0.01):
+            continue  # Timeout → revérifier stop_event
+        frame_ready.clear()  # Reset l'event pour la prochaine frame
+        
         try:
             frame = gateway.receive_image()
             if frame is None:
                 continue
+            
+            LOG.info(f"[PROC-SIM] Processing frame #{frame.meta.frame_id:03d}")  # ← Log AVANT traitement
+            
             mask = (frame.image > 128).astype(np.uint8)
             meta = {
                 "frame_id": frame.meta.frame_id,
@@ -104,7 +142,11 @@ def simulate_processing(gateway: IGTGateway, stop_event: threading.Event):
                 "state": "VISIBLE",
             }
             gateway.send_mask(mask, meta)
-            LOG.info(f"[PROC-SIM] Processed frame #{frame.meta.frame_id:03d}")
+            
+            # 🔬 INSTRUMENTATION : Logger la taille de l'outbox après envoi
+            outbox_size = len(gateway._outbox)
+            if outbox_size > 0:
+                LOG.debug(f"[PROC-SIM] Outbox size after send: {outbox_size}")
         except Exception as e:
             LOG.exception(f"[PROC-SIM] Error: {e}")
     LOG.info("[PROC-SIM] Thread stopped.")
@@ -113,19 +155,41 @@ def simulate_processing(gateway: IGTGateway, stop_event: threading.Event):
 #  Test principal (RX → PROC → TX)
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
+    # ──────────────────────────────────────────────
+    # OPTIMISATION 1/3 : Activer timer Windows 1ms
+    # ──────────────────────────────────────────────
+    from utils.win_timer_resolution import enable_high_resolution_timer
+    enable_high_resolution_timer()
+    
     LOG.info("Initialisation du IGTGateway (vraie pipeline, mode mock)")
 
     gateway = IGTGateway("127.0.0.1", 18944, 18945, target_fps=100.0)
     gateway._running = True  # mode offline
 
     stop_event = threading.Event()
+    frame_ready = threading.Event()  # ← Signal quand une frame est disponible
 
     # Threads RX / PROC / TX (TX = run_slicer_server officiel)
-    rx_thread = threading.Thread(target=simulate_frame_source, args=(gateway, stop_event), daemon=True)
-    proc_thread = threading.Thread(target=simulate_processing, args=(gateway, stop_event), daemon=True)
+    rx_thread = threading.Thread(
+        target=simulate_frame_source,
+        args=(gateway, stop_event, frame_ready),  # ← Ajouter frame_ready
+        daemon=True
+    )
+    proc_thread = threading.Thread(
+        target=simulate_processing,
+        args=(gateway, stop_event, frame_ready),  # ← Ajouter frame_ready
+        daemon=True
+    )
     tx_thread = threading.Thread(
         target=run_slicer_server,
-        args=(gateway._outbox, stop_event, 18945, gateway.update_tx_stats, gateway.events.emit),
+        args=(
+            gateway._outbox,
+            stop_event,
+            18945,
+            gateway.update_tx_stats,
+            gateway.events.emit,
+            gateway._tx_ready  # 🔬 OPTIMISATION : Passer l'Event pour réveil instantané
+        ),
         daemon=True,
     )
 
