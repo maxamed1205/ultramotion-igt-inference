@@ -1,4 +1,4 @@
-"""
+﻿"""
 Dashboard Unifié - Ultramotion IGT Inference Pipeline
 ======================================================
 
@@ -915,12 +915,60 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             <div class="card">
                 <h2>💻 GPU Utilisation</h2>
                 <div class="metric">
+                    <span class="metric-label">Device</span>
+                    <span id="gpu-device" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Driver / CUDA</span>
+                    <span id="gpu-driver" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Streams actifs</span>
+                    <span id="gpu-streams" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
                     <span class="metric-label">Utilisation (%)</span>
                     <span id="gpu-util" class="metric-value">0.0</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Mémoire (MB)</span>
-                    <span id="gpu-memory" class="metric-value">0</span>
+                    <span class="metric-label">Mémoire utilisée</span>
+                    <span id="gpu-memory" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mémoire réservée</span>
+                    <span id="gpu-memory-reserved" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Dernière mise à jour</span>
+                    <span id="gpu-last-update" class="metric-value">-- s</span>
+                </div>
+
+
+
+            </div>
+            
+            <!-- GPU Reference Values Card -->
+            <div class="card">
+                <h2>📘 Valeurs de Référence GPU</h2>
+                <div style="font-family: 'Courier New', monospace; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; color: #e6eef8; font-size: 0.9em; line-height: 1.4;">
+                    <div style="margin-bottom: 12px; font-weight: bold; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px;">
+                        ÉTAPE DE PIPELINE → UTIL (%) | MÉM. UTILISÉE | MÉM. RÉSERVÉE
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <span style="color: #10b981;">Idle (avant traitement)</span> ........... <span style="color: #f59e0b;">0–2 %</span> | <span style="color: #3b82f6;">200–400 MB</span> | <span style="color: #ec4899;">400–600 MB</span>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <span style="color: #10b981;">D-FINE (détection)</span> .............. <span style="color: #f59e0b;">60–80 %</span> | <span style="color: #3b82f6;">600–900 MB</span> | <span style="color: #ec4899;">1000–1300 MB</span>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <span style="color: #10b981;">MobileSAM (segmentation)</span> ........ <span style="color: #f59e0b;">80–99 %</span> | <span style="color: #3b82f6;">1000–1600 MB</span> | <span style="color: #ec4899;">1800–2400 MB</span>
+                    </div>
+                    <div>
+                        <span style="color: #10b981;">Post-clean (empty_cache)</span> ........ <span style="color: #f59e0b;">5–10 %</span> | <span style="color: #3b82f6;">200–400 MB</span> | <span style="color: #ec4899;">400–600 MB</span>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; font-size: 0.85em; opacity: 0.8; font-style: italic;">
+                    💡 Ces valeurs sont typiques pour un RTX 3080/4080. Les seuils peuvent varier selon votre GPU.
                 </div>
             </div>
             
@@ -945,6 +993,11 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
         <!-- Charts -->
         <div id="chart-container">
             <div id="fps-chart" style="height: 300px;"></div>
+            <!-- GPU Utilisation Sparkline (historique 10s) -->
+            <div style="margin-top: 20px;">
+                <h3 style="color: #333; margin-bottom: 8px; font-size: 1.1em; text-align: center;">🔄 GPU Utilisation (%) — Historique 10 secondes</h3>
+                <div id="gpu-util-sparkline-card" style="height: 80px; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 8px;"></div>
+            </div>
             <div id="gpu-transfer-chart" style="height: 350px; margin-top: 20px;"></div>
             <div id="interstage-chart" style="height: 400px; margin-top: 20px;"></div>
         </div>
@@ -996,10 +1049,31 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 font: {{ size: 12, color: "#666" }}
             }}]
         }};
+
+        // Compact sparkline layout for GPU util (in card)
+        const gpuSparkCardLayout = {{
+            margin: {{ t: 2, r: 4, b: 2, l: 4 }},
+            xaxis: {{ visible: false }},
+            yaxis: {{ visible: false, range: [0, 100] }},
+            showlegend: false,
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        }};
         
-        Plotly.newPlot('fps-chart', [], fpsLayout);
-        Plotly.newPlot('gpu-transfer-chart', [], gpuTransferLayout);
-        Plotly.newPlot('interstage-chart', [], interstageLayout);
+    Plotly.newPlot('fps-chart', [], fpsLayout);
+    Plotly.newPlot('gpu-util-sparkline-card', [], gpuSparkCardLayout);
+    Plotly.newPlot('gpu-transfer-chart', [], gpuTransferLayout);
+    Plotly.newPlot('interstage-chart', [], interstageLayout);
+    
+    // Initialize GPU sparkline with fictional data (for testing)
+    const mockGpuData = [12, 15, 22, 35, 67, 78, 85, 92, 88, 76, 54, 43, 28, 19, 14];
+    const mockTimePoints = Array.from({{length: mockGpuData.length}}, (_, i) => i);
+    
+    Plotly.react('gpu-util-sparkline-card', [
+        {{ x: mockTimePoints, y: mockGpuData, type: 'scatter', mode: 'lines', 
+          fill: 'tozeroy', line: {{ color: '#9333ea', width: 2 }}, 
+          fillcolor: 'rgba(147, 51, 234, 0.3)' }}
+    ], gpuSparkCardLayout);
         
         ws.onmessage = function(event) {{
             const data = JSON.parse(event.data);
@@ -1051,8 +1125,25 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             document.getElementById('gpu-throughput').textContent = (gpuStats.throughput_fps || 0).toFixed(1);
             
             // GPU
-            document.getElementById('gpu-util').textContent = data.gpu_util.toFixed(1);
-            document.getElementById('gpu-memory').textContent = Math.round(data.gpu_memory_mb);
+            // Device / Driver / Streams (may be undefined until backend provides them)
+            document.getElementById('gpu-device').textContent = data.gpu_device_name || 'N/A';
+            const driverText = (data.gpu_driver_ver && data.gpu_cuda_ver) ? `${{data.gpu_driver_ver}} / ${{data.gpu_cuda_ver}}` : (data.gpu_driver_ver || data.gpu_cuda_ver || 'N/A');
+            document.getElementById('gpu-driver').textContent = driverText;
+            // Streams may be an array or string
+            const streamsVal = Array.isArray(data.gpu_streams) ? data.gpu_streams.join('  |  ') : (data.gpu_streams || 'N/A');
+            document.getElementById('gpu-streams').textContent = streamsVal;
+
+            document.getElementById('gpu-util').textContent = (data.gpu_util || 0).toFixed(1);
+            document.getElementById('gpu-memory').textContent = Math.round(data.gpu_memory_mb || 0);
+            document.getElementById('gpu-memory-reserved').textContent = Math.round(data.gpu_memory_reserved || 0);
+
+            // Last update delta (seconds)
+            try {{
+                const lastUpdateDelta = ((Date.now() - new Date(data.datetime).getTime())/1000).toFixed(1);
+                document.getElementById('gpu-last-update').textContent = `${{lastUpdateDelta}} s`;
+            }} catch (e) {{
+                document.getElementById('gpu-last-update').textContent = '-- s';
+            }}
             
             // Queues
             document.getElementById('queue-rt').textContent = data.queue_rt_size;
@@ -1087,6 +1178,15 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 {{ x: timestamps, y: fpsInData, name: 'FPS RX', type: 'scatter', mode: 'lines+markers', line: {{ color: '#10b981' }} }},
                 {{ x: timestamps, y: fpsOutData, name: 'FPS TX', type: 'scatter', mode: 'lines+markers', line: {{ color: '#3b82f6' }} }}
             ], fpsLayout);
+
+
+            const last10Gpu = gpuUtilData.slice(-10);  // ~10 seconds of data
+            const sparklinePoints = Array.from({{length: last10Gpu.length}}, (_, i) => i);
+            Plotly.react('gpu-util-sparkline-card', [
+                {{ x: sparklinePoints, y: last10Gpu, type: 'scatter', mode: 'lines', 
+                   fill: 'tozeroy', line: {{ color: '#9333ea', width: 2 }}, 
+                   fillcolor: 'rgba(147, 51, 234, 0.3)' }}
+            ], gpuSparkCardLayout);
             
             // GPU Transfer chart (stacked bar)
             if (data.gpu_transfer && data.gpu_transfer.frames && data.gpu_transfer.frames.length > 0) {{
