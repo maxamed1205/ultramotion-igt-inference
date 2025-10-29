@@ -128,6 +128,22 @@ def collect_gateway_metrics(gw) -> Dict[str, float]:
         "drops_tx_total": int(snap.get("drops_tx_total", snap.get("drops_tx", 0) or 0)),
         # fréquence cible configurée dans le gateway
         "fps_target": float(getattr(getattr(gw, "config", None), "target_fps", 0.0) or 0.0),
+        
+        # 🎯 NOUVELLES MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES (Workflow GPU-résident)
+        # Latences moyennes par étape
+        "interstage_rx_to_cpu_gpu_ms": float(snap.get("interstage_rx_to_cpu_gpu_ms", 0.0)),
+        "interstage_cpu_gpu_to_proc_ms": float(snap.get("interstage_cpu_gpu_to_proc_ms", 0.0)),
+        "interstage_proc_to_gpu_cpu_ms": float(snap.get("interstage_proc_to_gpu_cpu_ms", 0.0)),
+        "interstage_gpu_cpu_to_tx_ms": float(snap.get("interstage_gpu_cpu_to_tx_ms", 0.0)),
+        
+        # Percentiles P95 par étape
+        "interstage_rx_to_cpu_gpu_p95_ms": float(snap.get("interstage_rx_to_cpu_gpu_p95_ms", 0.0)),
+        "interstage_cpu_gpu_to_proc_p95_ms": float(snap.get("interstage_cpu_gpu_to_proc_p95_ms", 0.0)),
+        "interstage_proc_to_gpu_cpu_p95_ms": float(snap.get("interstage_proc_to_gpu_cpu_p95_ms", 0.0)),
+        "interstage_gpu_cpu_to_tx_p95_ms": float(snap.get("interstage_gpu_cpu_to_tx_p95_ms", 0.0)),
+        
+        # Métadonnées inter-étapes
+        "interstage_samples": int(snap.get("interstage_samples", 0)),
     }
 
 

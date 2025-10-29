@@ -158,7 +158,7 @@ class UnifiedMetricsCollector:
             "fps_tx": aggregated.get("fps_tx", 0.0),
             "sync_txproc": aggregated.get("sync_txproc", 0.0),
             
-            # Latences inter-étapes
+            # Latences inter-étapes (anciennes)
             "latency_rxproc_avg": aggregated.get("latency_rxproc_avg", 0.0),
             "latency_rxproc_last": aggregated.get("latency_rxproc_last", 0.0),
             "latency_proctx_avg": aggregated.get("latency_proctx_avg", 0.0),
@@ -167,6 +167,22 @@ class UnifiedMetricsCollector:
             "latency_rxtx_last": aggregated.get("latency_rxtx_last", 0.0),
             
             "latency_details": aggregated.get("latency_details", {}),
+            
+            # 🎯 NOUVELLES MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES (GPU-résident optimisé)
+            # Latences moyennes par étape  
+            "interstage_rx_to_cpu_gpu_ms": aggregated.get("interstage_rx_to_cpu_gpu_ms", 0.0),
+            "interstage_cpu_gpu_to_proc_ms": aggregated.get("interstage_cpu_gpu_to_proc_ms", 0.0),
+            "interstage_proc_to_gpu_cpu_ms": aggregated.get("interstage_proc_to_gpu_cpu_ms", 0.0),
+            "interstage_gpu_cpu_to_tx_ms": aggregated.get("interstage_gpu_cpu_to_tx_ms", 0.0),
+            
+            # Percentiles P95 par étape
+            "interstage_rx_to_cpu_gpu_p95_ms": aggregated.get("interstage_rx_to_cpu_gpu_p95_ms", 0.0),
+            "interstage_cpu_gpu_to_proc_p95_ms": aggregated.get("interstage_cpu_gpu_to_proc_p95_ms", 0.0),
+            "interstage_proc_to_gpu_cpu_p95_ms": aggregated.get("interstage_proc_to_gpu_cpu_p95_ms", 0.0),
+            "interstage_gpu_cpu_to_tx_p95_ms": aggregated.get("interstage_gpu_cpu_to_tx_p95_ms", 0.0),
+            
+            # Métadonnées inter-étapes
+            "interstage_samples": aggregated.get("interstage_samples", 0),
             
             # KPI
             "fps_rx_kpi": aggregated.get("fps_rx_kpi", 0.0),
@@ -711,9 +727,9 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 </div>
             </div>
             
-            <!-- Latencies Card -->
+            <!-- Latencies Card (anciennes) -->
             <div class="card">
-                <h2>⏱️ Latences Inter-Étapes</h2>
+                <h2>⏱️ Latences Inter-Étapes (Legacy)</h2>
                 <div class="metric">
                     <span class="metric-label">RX → PROC (avg/last ms)</span>
                     <span id="lat-rxproc" class="metric-value">0.0 / 0.0</span>
@@ -725,6 +741,31 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 <div class="metric">
                     <span class="metric-label">RX → TX total (avg/last ms)</span>
                     <span id="lat-rxtx" class="metric-value">0.0 / 0.0</span>
+                </div>
+            </div>
+            
+            <!-- 🎯 Nouvelles Métriques Inter-Étapes Détaillées -->
+            <div class="card">
+                <h2>🎯 Pipeline GPU-Résident (Phase 3)</h2>
+                <div class="metric">
+                    <span class="metric-label">RX → CPU-to-GPU (avg / P95 ms)</span>
+                    <span id="interstage-rx-gpu" class="metric-value">0.0 / 0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">CPU-to-GPU → PROC (avg / P95 ms)</span>
+                    <span id="interstage-gpu-proc" class="metric-value">0.0 / 0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">PROC → GPU-to-CPU (avg / P95 ms)</span>
+                    <span id="interstage-proc-cpu" class="metric-value">0.0 / 0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">GPU-to-CPU → TX (avg / P95 ms)</span>
+                    <span id="interstage-cpu-tx" class="metric-value">0.0 / 0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">📊 Échantillons</span>
+                    <span id="interstage-samples" class="metric-value">0</span>
                 </div>
             </div>
             
@@ -786,6 +827,7 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             <div id="latency-chart" style="height: 300px; margin-top: 20px;"></div>
             <div id="gpu-transfer-chart" style="height: 350px; margin-top: 20px;"></div>
             <div id="latency-per-frame-chart" style="height: 400px; margin-top: 20px;"></div>
+            <div id="interstage-chart" style="height: 400px; margin-top: 20px;"></div>
         </div>
         
         <div class="footer">
@@ -836,10 +878,27 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
             showlegend: true
         }};
         
+        const interstageLayout = {{
+            title: '🎯 Pipeline GPU-Résident - Latences Inter-Étapes Détaillées',
+            xaxis: {{ title: 'Temps (s)' }},
+            yaxis: {{ title: 'Latence (ms)', rangemode: 'tozero' }},
+            margin: {{ t: 50, r: 20, b: 40, l: 50 }},
+            showlegend: true,
+            annotations: [{{
+                text: "RX → CPU-to-GPU → PROC(GPU) → GPU-to-CPU → TX",
+                showarrow: false,
+                xref: "paper", yref: "paper",
+                x: 0.5, xanchor: 'center',
+                y: 1.02, yanchor: 'bottom',
+                font: {{ size: 12, color: "#666" }}
+            }}]
+        }};
+        
         Plotly.newPlot('fps-chart', [], fpsLayout);
         Plotly.newPlot('latency-chart', [], latencyLayout);
         Plotly.newPlot('gpu-transfer-chart', [], gpuTransferLayout);
         Plotly.newPlot('latency-per-frame-chart', [], latencyPerFrameLayout);
+        Plotly.newPlot('interstage-chart', [], interstageLayout);
         
         ws.onmessage = function(event) {{
             const data = JSON.parse(event.data);
@@ -862,13 +921,24 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                 `${{data.last_frame_tx || 0}} / ${{(data.fps_tx || 0).toFixed(1)}}`;
             document.getElementById('sync-txproc').textContent = (data.sync_txproc || 0).toFixed(1);
             
-            // Latencies
+            // Latencies (Legacy)
             document.getElementById('lat-rxproc').textContent = 
                 `${{(data.latency_rxproc_avg || 0).toFixed(1)}} / ${{(data.latency_rxproc_last || 0).toFixed(1)}}`;
             document.getElementById('lat-proctx').textContent = 
                 `${{(data.latency_proctx_avg || 0).toFixed(1)}} / ${{(data.latency_proctx_last || 0).toFixed(1)}}`;
             document.getElementById('lat-rxtx').textContent = 
                 `${{(data.latency_rxtx_avg || 0).toFixed(1)}} / ${{(data.latency_rxtx_last || 0).toFixed(1)}}`;
+            
+            // 🎯 Nouvelles Métriques Inter-Étapes Détaillées (Pipeline GPU-Résident)
+            document.getElementById('interstage-rx-gpu').textContent = 
+                `${{(data.interstage_rx_to_cpu_gpu_ms || 0).toFixed(2)}} / ${{(data.interstage_rx_to_cpu_gpu_p95_ms || 0).toFixed(2)}}`;
+            document.getElementById('interstage-gpu-proc').textContent = 
+                `${{(data.interstage_cpu_gpu_to_proc_ms || 0).toFixed(2)}} / ${{(data.interstage_cpu_gpu_to_proc_p95_ms || 0).toFixed(2)}}`;
+            document.getElementById('interstage-proc-cpu').textContent = 
+                `${{(data.interstage_proc_to_gpu_cpu_ms || 0).toFixed(2)}} / ${{(data.interstage_proc_to_gpu_cpu_p95_ms || 0).toFixed(2)}}`;
+            document.getElementById('interstage-cpu-tx').textContent = 
+                `${{(data.interstage_gpu_cpu_to_tx_ms || 0).toFixed(2)}} / ${{(data.interstage_gpu_cpu_to_tx_p95_ms || 0).toFixed(2)}}`;
+            document.getElementById('interstage-samples').textContent = data.interstage_samples || 0;
             
             // GPU Transfer
             const gpuStats = data.gpu_transfer?.stats || {{}};
@@ -953,6 +1023,35 @@ def generate_dashboard_html(config: DashboardConfig) -> str:
                     {{ x: frames, y: rxtx, name: 'RX → TX (total)', type: 'scatter', mode: 'lines+markers', 
                        line: {{ color: '#f59e0b', width: 2 }}, marker: {{ size: 4 }} }}
                 ], latencyPerFrameLayout);
+            }}
+            
+            // 🎯 Nouveau graphique inter-étapes détaillé (Pipeline GPU-Résident)
+            if (data.interstage_samples > 0) {{
+                const times = historyData.map((d, i) => i * {config.update_interval});
+                const rxToGpu = historyData.map(d => d.interstage_rx_to_cpu_gpu_ms || 0);
+                const gpuToProc = historyData.map(d => d.interstage_cpu_gpu_to_proc_ms || 0);
+                const procToCpu = historyData.map(d => d.interstage_proc_to_gpu_cpu_ms || 0);
+                const cpuToTx = historyData.map(d => d.interstage_gpu_cpu_to_tx_ms || 0);
+                
+                Plotly.react('interstage-chart', [
+                    {{ x: times, y: rxToGpu, name: 'RX → CPU-to-GPU', type: 'scatter', mode: 'lines+markers',
+                       line: {{ color: '#ec4899', width: 2 }}, marker: {{ size: 3 }} }},
+                    {{ x: times, y: gpuToProc, name: 'CPU-to-GPU → PROC(GPU)', type: 'scatter', mode: 'lines+markers',
+                       line: {{ color: '#10b981', width: 2 }}, marker: {{ size: 3 }} }},
+                    {{ x: times, y: procToCpu, name: 'PROC(GPU) → GPU-to-CPU', type: 'scatter', mode: 'lines+markers',
+                       line: {{ color: '#3b82f6', width: 2 }}, marker: {{ size: 3 }} }},
+                    {{ x: times, y: cpuToTx, name: 'GPU-to-CPU → TX', type: 'scatter', mode: 'lines+markers',
+                       line: {{ color: '#f59e0b', width: 2 }}, marker: {{ size: 3 }} }}
+                ], interstageLayout);
+            }} else {{
+                // Pas de données inter-étapes - afficher message informatif
+                Plotly.react('interstage-chart', [{{
+                    x: [0, 1], y: [0, 0], 
+                    type: 'scatter', mode: 'text',
+                    text: ['Aucune donnée inter-étapes', 'Activer le mode GPU pour voir les métriques'],
+                    textposition: 'middle center',
+                    showlegend: false
+                }}], interstageLayout);
             }}
         }}
     </script>

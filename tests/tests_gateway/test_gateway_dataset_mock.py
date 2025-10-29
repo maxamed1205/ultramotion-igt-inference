@@ -344,6 +344,20 @@ def simulate_processing(
                         LOG.info(f"  PROC → GPU-to-CPU:  {proc_to_gpu_cpu:.2f}ms")
                         LOG.info(f"  Total processing:   {total_processing:.2f}ms | {gpu_device}")
                         
+                        # 📈 Afficher les statistiques cumulées si disponibles
+                        try:
+                            stats_snap = gateway.stats.snapshot()
+                            interstage_samples = stats_snap.get('interstage_samples', 0)
+                            if interstage_samples >= 5:  # Afficher seulement si assez d'échantillons
+                                avg_proc = stats_snap.get('interstage_cpu_gpu_to_proc_ms', 0)
+                                avg_total = (stats_snap.get('interstage_rx_to_cpu_gpu_ms', 0) + 
+                                           avg_proc + 
+                                           stats_snap.get('interstage_proc_to_gpu_cpu_ms', 0) + 
+                                           stats_snap.get('interstage_gpu_cpu_to_tx_ms', 0))
+                                LOG.info(f"  📈 Moyennes cumulées ({interstage_samples} échantillons): PROC={avg_proc:.1f}ms, Total={avg_total:.1f}ms")
+                        except Exception:
+                            pass
+                        
                 except Exception as e:
                     LOG.warning(f"[PROC-SIM] GPU failed, fallback CPU: {e}")
                     # Fallback vers CPU (pas de métriques inter-étapes détaillées)
@@ -543,20 +557,90 @@ if __name__ == "__main__":
 
     # Statistiques finales
     LOG.info("=" * 80)
-    LOG.info("RESULTATS")
+    LOG.info("RESULTATS FINAUX - PIPELINE GPU-RÉSIDENT OPTIMISÉ")
     LOG.info("=" * 80)
     LOG.info(f"Outbox restante: {len(gateway._outbox)} items")
     
     # Afficher les stats du gateway si disponibles
     try:
         stats = gateway.stats.snapshot()
-        LOG.info(f"RX FPS moyen: {stats.get('avg_fps_rx', 0):.1f}")
-        LOG.info(f"TX FPS moyen: {stats.get('avg_fps_tx', 0):.1f}")
-        LOG.info(f"Total bytes RX: {stats.get('bytes_rx', 0) / 1e6:.2f} MB")
-        LOG.info(f"Total bytes TX: {stats.get('bytes_tx', 0) / 1e6:.2f} MB")
+        
+        # 📊 Statistiques générales
+        LOG.info(f"\n📊 STATISTIQUES GÉNÉRALES:")
+        LOG.info(f"   RX FPS moyen: {stats.get('avg_fps_rx', 0):.1f}")
+        LOG.info(f"   TX FPS moyen: {stats.get('avg_fps_tx', 0):.1f}")
+        LOG.info(f"   Total bytes RX: {stats.get('bytes_rx', 0) / 1e6:.2f} MB")
+        LOG.info(f"   Total bytes TX: {stats.get('bytes_tx', 0) / 1e6:.2f} MB")
+        
+        # 🎯 NOUVELLES MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES
+        interstage_samples = stats.get('interstage_samples', 0)
+        if interstage_samples > 0:
+            LOG.info(f"\n🎯 MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES ({interstage_samples} échantillons):")
+            LOG.info(f"   RX → CPU-to-GPU:    {stats.get('interstage_rx_to_cpu_gpu_ms', 0):.2f}ms (P95: {stats.get('interstage_rx_to_cpu_gpu_p95_ms', 0):.2f}ms)")
+            LOG.info(f"   CPU-to-GPU → PROC:  {stats.get('interstage_cpu_gpu_to_proc_ms', 0):.2f}ms (P95: {stats.get('interstage_cpu_gpu_to_proc_p95_ms', 0):.2f}ms)")
+            LOG.info(f"   PROC → GPU-to-CPU:  {stats.get('interstage_proc_to_gpu_cpu_ms', 0):.2f}ms (P95: {stats.get('interstage_proc_to_gpu_cpu_p95_ms', 0):.2f}ms)")
+            LOG.info(f"   GPU-to-CPU → TX:    {stats.get('interstage_gpu_cpu_to_tx_ms', 0):.2f}ms (P95: {stats.get('interstage_gpu_cpu_to_tx_p95_ms', 0):.2f}ms)")
+            
+            # Calcul du total des étapes inter-médiaires
+            total_interstage = (stats.get('interstage_rx_to_cpu_gpu_ms', 0) + 
+                               stats.get('interstage_cpu_gpu_to_proc_ms', 0) + 
+                               stats.get('interstage_proc_to_gpu_cpu_ms', 0) + 
+                               stats.get('interstage_gpu_cpu_to_tx_ms', 0))
+            LOG.info(f"   📈 Total inter-étapes: {total_interstage:.2f}ms")
+        else:
+            LOG.info(f"\n⚠️  AUCUNE MÉTRIQUE INTER-ÉTAPES (échantillons: {interstage_samples})")
+            LOG.info(f"   Possible si mode CPU uniquement ou erreurs de traitement")
+        
+        # 🔍 Latences globales pour comparaison
+        LOG.info(f"\n🔍 LATENCES GLOBALES:")
+        LOG.info(f"   RX→TX moyenne: {stats.get('latency_ms_avg', 0):.2f}ms")
+        LOG.info(f"   RX→TX P95: {stats.get('latency_ms_p95', 0):.2f}ms")
+        LOG.info(f"   RX→TX max: {stats.get('latency_ms_max', 0):.2f}ms")
+        LOG.info(f"   Échantillons latence: {stats.get('latency_samples', 0)}")
+        
+        # 🎯 Analyse de performance du pipeline GPU-résident
+        if interstage_samples > 0:
+            proc_ratio = stats.get('interstage_cpu_gpu_to_proc_ms', 0) / max(total_interstage, 0.001) * 100
+            transfer_ratio = (stats.get('interstage_rx_to_cpu_gpu_ms', 0) + 
+                             stats.get('interstage_proc_to_gpu_cpu_ms', 0)) / max(total_interstage, 0.001) * 100
+            
+            LOG.info(f"\n🎯 ANALYSE PIPELINE GPU-RÉSIDENT:")
+            LOG.info(f"   Temps processing GPU: {proc_ratio:.1f}% du total")
+            LOG.info(f"   Temps transferts GPU: {transfer_ratio:.1f}% du total")
+            
+            if proc_ratio > 60:
+                LOG.info("   ✅ Pipeline optimisé: Processing domine les transferts")
+                LOG.info("   ✅ Architecture GPU-résident validée avec succès")
+            elif transfer_ratio > 40:
+                LOG.info("   ⚠️  Optimisation possible: Transferts GPU élevés")
+                LOG.info("   💡 Recommandation: Vérifier les tailles de données et batching")
+            else:
+                LOG.info("   📊 Pipeline équilibré")
+        
+        # 🏆 ÉVALUATION FINALE DU PIPELINE
+        LOG.info(f"\n🏆 ÉVALUATION FINALE:")
+        if use_gpu and interstage_samples > 0:
+            if total_interstage < 15.0:
+                LOG.info("   🥇 EXCELLENT: Pipeline GPU-résident très performant")
+            elif total_interstage < 25.0:
+                LOG.info("   🥈 BON: Pipeline GPU-résident performant")
+            elif total_interstage < 40.0:
+                LOG.info("   🥉 CORRECT: Pipeline fonctionnel, optimisations possibles")
+            else:
+                LOG.info("   ⚠️  LENT: Pipeline nécessite des optimisations")
+            
+            LOG.info(f"   💾 Mode: GPU-résident optimisé (Phase 3)")
+            LOG.info(f"   🎯 Temps total moyen: {total_interstage:.1f}ms")
+        elif use_gpu:
+            LOG.info("   ⚠️  Mode GPU activé mais pas de métriques inter-étapes")
+            LOG.info("   💡 Vérifier l'intégration des mark_interstage_*()")
+        else:
+            LOG.info("   💻 Mode CPU classique (pas de GPU disponible)")
+            LOG.info("   📝 Pour de meilleures performances, utiliser un GPU compatible")
+                
     except Exception as e:
         LOG.debug(f"Stats non disponibles: {e}")
     
     LOG.info("=" * 80)
-    LOG.info(">>> Test termine avec succes")
+    LOG.info(">>> Test terminé avec succès - Métriques inter-étapes collectées")
     LOG.info("=" * 80)
