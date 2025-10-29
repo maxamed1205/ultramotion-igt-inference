@@ -263,7 +263,12 @@ class UnifiedMetricsCollector:
                         total_ms = float(match.group(4))
                         frame_id = int(match.group(5))
                         
-                        self.gpu_timestamps.append(time.time())
+                        # 🔧 CORRECTIF: Essayer d'extraire le timestamp réel du log
+                        log_timestamp = self._extract_log_timestamp(line)
+                        if log_timestamp is None:
+                            log_timestamp = time.time()  # Fallback si parsing échoue
+                        
+                        self.gpu_timestamps.append(log_timestamp)
                         self.gpu_frame_ids.append(frame_id)
                         self.gpu_total_latencies.append(total_ms)
                         self.gpu_norm_latencies.append(norm_ms)
@@ -284,25 +289,36 @@ class UnifiedMetricsCollector:
         
         stats = {}
         if total:
+            # 🔧 CORRECTIF: Compter seulement les frames récentes (pas tout l'historique)
+            recent_frames_count = min(len(frames), 100)  # Max 100 frames récentes
+            recent_total = total[-recent_frames_count:] if len(total) >= recent_frames_count else total
+            recent_norm = norm[-recent_frames_count:] if len(norm) >= recent_frames_count else norm
+            recent_pin = pin[-recent_frames_count:] if len(pin) >= recent_frames_count else pin
+            recent_copy = copy[-recent_frames_count:] if len(copy) >= recent_frames_count else copy
+            
             stats = {
-                "total_frames": len(frames),
-                "avg_total": round(sum(total) / len(total), 2),
-                "min_total": round(min(total), 2),
-                "max_total": round(max(total), 2),
-                "avg_norm": round(sum(norm) / len(norm), 2),
-                "avg_pin": round(sum(pin) / len(pin), 2),
-                "avg_copy": round(sum(copy) / len(copy), 2),
+                "total_frames": recent_frames_count,  # 🔧 CORRECTIF: Frames récentes seulement
+                "avg_total": round(sum(recent_total) / len(recent_total), 2),
+                "min_total": round(min(recent_total), 2),
+                "max_total": round(max(recent_total), 2),
+                "avg_norm": round(sum(recent_norm) / len(recent_norm), 2),
+                "avg_pin": round(sum(recent_pin) / len(recent_pin), 2),
+                "avg_copy": round(sum(recent_copy) / len(recent_copy), 2),
             }
             
-            # Throughput
+            # 🔧 CORRECTIF: Throughput basé sur les timestamps du buffer (plus fiable)
             if len(self.gpu_timestamps) >= 2:
-                recent_ts = list(self.gpu_timestamps)[-10:]
+                recent_ts = list(self.gpu_timestamps)[-20:]  # Élargir à 20 pour plus de précision
                 if len(recent_ts) >= 2:
                     time_span = recent_ts[-1] - recent_ts[0]
-                    if time_span > 0:
+                    if time_span > 0.1:  # Éviter division par zéro et valeurs trop petites
                         stats["throughput_fps"] = round((len(recent_ts) - 1) / time_span, 1)
                     else:
                         stats["throughput_fps"] = 0.0
+                else:
+                    stats["throughput_fps"] = 0.0
+            else:
+                stats["throughput_fps"] = 0.0
         
         return {
             "frames": frames[-100:],  # Dernières 100 frames
@@ -376,6 +392,38 @@ class UnifiedMetricsCollector:
         except Exception as e:
             LOG.debug(f"Error getting interstage details: {e}")
             return {"frames": [], "rx_to_gpu": [], "gpu_to_proc": [], "proc_to_cpu": [], "cpu_to_tx": [], "total": []}
+    
+    def _extract_log_timestamp(self, line: str) -> Optional[float]:
+        """Extrait le timestamp d'une ligne de log KPI.
+        
+        Format attendu: [2024-10-29 14:32:15,123] ou timestamp Unix
+        """
+        try:
+            # Pattern pour timestamp avec millisecondes
+            import re
+            from datetime import datetime
+            
+            # Format: [2024-10-29 14:32:15,123]
+            ts_pattern = re.compile(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}),(\d{3})\]")
+            match = ts_pattern.search(line)
+            
+            if match:
+                date_str = match.group(1)
+                time_str = match.group(2)
+                ms_str = match.group(3)
+                dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
+                return dt.timestamp() + float(ms_str) / 1000.0
+            
+            # Fallback: chercher timestamp Unix dans la ligne
+            unix_pattern = re.compile(r"ts[=:](\d{10}\.?\d*)")
+            match = unix_pattern.search(line)
+            if match:
+                return float(match.group(1))
+                
+        except Exception:
+            pass
+        
+        return None  # Parsing échoué
     
     def _read_metrics_from_logs(self) -> Dict[str, float]:
         """Lit les métriques depuis pipeline.log et kpi.log"""
