@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional, Tuple
 import logging
 import time
 import numpy as np
+import torch
 
 from core.types import GpuFrame, ResultPacket
 from core.queues.buffers import get_queue_gpu, get_queue_out, try_dequeue, enqueue_nowait_out
@@ -13,7 +14,7 @@ LOG = logging.getLogger("igt.inference")
 LOG_KPI = logging.getLogger("igt.kpi")
 
 
-def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: Any, tau_conf: float = 0.0001) -> Dict[str, Any]:
+def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: Any, tau_conf: float = 0.0001, sam_as_numpy: bool = False) -> Dict[str, Any]:
     """Orchestration complète des étapes 0 → 3.
 
     0. Passe l'image dans D-FINE → bbox/conf.
@@ -21,6 +22,14 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
     2. Crop ROI autour de la bbox.
     3. Passe la ROI dans MobileSAM.
     4. Calcule les pondérations spatiales (W_edge/W_in/W_out).
+
+    Args:
+        frame_t: Input frame tensor or array
+        dfine_model: Detection model
+        sam_model: Segmentation model  
+        tau_conf: Confidence threshold
+        sam_as_numpy: If True, converts tensors to numpy for SAM (legacy mode).
+                     If False, keeps tensors on GPU for SAM (GPU-resident mode).
 
     Returns:
         dictionnaire prêt pour visibility_fsm.evaluate_visibility().
@@ -74,43 +83,94 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
             out["state_hint"] = "LOST"
             return out
 
-        # 3) Extract full image as uint8 RGB for SAM
+        # 3) Extract full image for SAM - GPU-resident path or legacy CPU path
         full_image = None
-        try:
-            arr = frame_t
-            if hasattr(frame_t, "tensor"):
-                arr = getattr(frame_t, "tensor")
+        arr = getattr(frame_t, "tensor", frame_t)
 
-            # Convert to numpy uint8 RGB (H, W, 3)
-            if hasattr(arr, "detach"):  # PyTorch tensor
+        if hasattr(arr, "detach") and not sam_as_numpy:
+            # ✅ GPU-resident path : SAM reçoit directement le tensor CUDA
+            try:
                 if arr.ndim == 4 and arr.shape[0] == 1:
-                    # [1, C, H, W] -> [H, W, C]
-                    arr_np = arr[0].permute(1, 2, 0).detach().cpu().numpy()
-                    # Denormalize if needed: if max <= 1.0, assume normalized
-                    if arr_np.max() <= 1.0:
-                        arr_np = (arr_np * 255).astype(np.uint8)
-                    else:
-                        arr_np = arr_np.astype(np.uint8)
+                    # [1, C, H, W] -> [H, W, C] on GPU
+                    full_image = arr[0].permute(1, 2, 0).contiguous()
                     
-                    # Convert to RGB if grayscale
-                    if arr_np.shape[-1] == 1:
-                        arr_np = np.repeat(arr_np, 3, axis=-1)
+                    # Normalisation (0–1) si besoin
+                    if full_image.dtype != torch.float32:
+                        full_image = full_image.to(torch.float32)
+                    if full_image.max() > 1.0:
+                        full_image = full_image / 255.0
                     
-                    full_image = arr_np
+                    # Convert to RGB if grayscale (on GPU)
+                    if full_image.shape[-1] == 1:
+                        full_image = full_image.repeat(1, 1, 3)
+                        
+                    LOG.debug("GPU-resident path: tensor shape=%s, device=%s", full_image.shape, full_image.device)
                 else:
-                    LOG.warning("Unexpected torch tensor shape: %s", arr.shape)
-            elif isinstance(arr, np.ndarray):
-                # Handle various numpy array formats
-                if arr.ndim == 2:
-                    # H x W grayscale -> RGB
-                    if arr.max() <= 1.0:
-                        arr = (arr * 255).astype(np.uint8)
+                    LOG.warning("Unexpected tensor shape for GPU SAM input: %s", arr.shape)
+                    full_image = None
+            except Exception as e:
+                LOG.exception("Failed GPU SAM path: %s", e)
+                full_image = None
+
+        else:
+            # 🧩 Legacy CPU path (for backward compat)
+            try:
+                if hasattr(arr, "detach"):  # PyTorch tensor
+                    if arr.ndim == 4 and arr.shape[0] == 1:
+                        # [1, C, H, W] -> [H, W, C]
+                        arr_np = arr[0].permute(1, 2, 0).detach().cpu().numpy()
+                        # Denormalize if needed: if max <= 1.0, assume normalized
+                        if arr_np.max() <= 1.0:
+                            arr_np = (arr_np * 255).astype(np.uint8)
+                        else:
+                            arr_np = arr_np.astype(np.uint8)
+                        
+                        # Convert to RGB if grayscale
+                        if arr_np.shape[-1] == 1:
+                            arr_np = np.repeat(arr_np, 3, axis=-1)
+                        
+                        full_image = arr_np
                     else:
-                        arr = arr.astype(np.uint8)
-                    full_image = np.stack([arr] * 3, axis=-1)
-                elif arr.ndim == 3:
-                    if arr.shape[-1] in (1, 3):
-                        # H x W x C
+                        LOG.warning("Unexpected torch tensor shape: %s", arr.shape)
+                elif isinstance(arr, np.ndarray):
+                    # Handle various numpy array formats
+                    if arr.ndim == 2:
+                        # H x W grayscale -> RGB
+                        if arr.max() <= 1.0:
+                            arr = (arr * 255).astype(np.uint8)
+                        else:
+                            arr = arr.astype(np.uint8)
+                        full_image = np.stack([arr] * 3, axis=-1)
+                    elif arr.ndim == 3:
+                        if arr.shape[-1] in (1, 3):
+                            # H x W x C
+                            if arr.max() <= 1.0:
+                                arr = (arr * 255).astype(np.uint8)
+                            else:
+                                arr = arr.astype(np.uint8)
+                            if arr.shape[-1] == 1:
+                                full_image = np.repeat(arr, 3, axis=-1)
+                            else:
+                                full_image = arr
+                        else:
+                            # C x H x W -> H x W x C
+                            arr = np.transpose(arr, (1, 2, 0))
+                            if arr.max() <= 1.0:
+                                arr = (arr * 255).astype(np.uint8)
+                            else:
+                                arr = arr.astype(np.uint8)
+                            if arr.shape[-1] == 1:
+                                full_image = np.repeat(arr, 3, axis=-1)
+                            else:
+                                full_image = arr
+                    elif arr.ndim == 4:
+                        # B x C x H x W or B x H x W x C
+                        first = arr[0]
+                        if first.shape[0] in (1, 3):
+                            # C x H x W
+                            arr = np.transpose(first, (1, 2, 0))
+                        else:
+                            arr = first
                         if arr.max() <= 1.0:
                             arr = (arr * 255).astype(np.uint8)
                         else:
@@ -119,36 +179,11 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
                             full_image = np.repeat(arr, 3, axis=-1)
                         else:
                             full_image = arr
-                    else:
-                        # C x H x W -> H x W x C
-                        arr = np.transpose(arr, (1, 2, 0))
-                        if arr.max() <= 1.0:
-                            arr = (arr * 255).astype(np.uint8)
-                        else:
-                            arr = arr.astype(np.uint8)
-                        if arr.shape[-1] == 1:
-                            full_image = np.repeat(arr, 3, axis=-1)
-                        else:
-                            full_image = arr
-                elif arr.ndim == 4:
-                    # B x C x H x W or B x H x W x C
-                    first = arr[0]
-                    if first.shape[0] in (1, 3):
-                        # C x H x W
-                        arr = np.transpose(first, (1, 2, 0))
-                    else:
-                        arr = first
-                    if arr.max() <= 1.0:
-                        arr = (arr * 255).astype(np.uint8)
-                    else:
-                        arr = arr.astype(np.uint8)
-                    if arr.shape[-1] == 1:
-                        full_image = np.repeat(arr, 3, axis=-1)
-                    else:
-                        full_image = arr
-        except Exception as e:
-            LOG.exception("Failed to extract full image for SAM: %s", e)
-            full_image = None
+                LOG.debug("Legacy CPU path: array shape=%s, type=%s", 
+                         getattr(full_image, 'shape', 'None'), type(full_image))
+            except Exception as e:
+                LOG.exception("Failed CPU SAM path: %s", e)
+                full_image = None
 
         if full_image is None:
             LOG.debug("Failed to extract full image; returning LOST")
@@ -157,8 +192,21 @@ def prepare_inference_inputs(frame_t: np.ndarray, dfine_model: Any, sam_model: A
 
         # 4) Run MobileSAM with full image + bbox (new predictor API)
         try:
+            # Instrumentation KPI pour debug visuel
+            try:
+                from core.monitoring.kpi import safe_log_kpi, format_kpi
+                safe_log_kpi(format_kpi({
+                    "ts": time.time(),
+                    "event": "prepare_inference_inputs",
+                    "sam_as_numpy": int(sam_as_numpy),
+                    "tensor_type": str(type(full_image)),
+                    "device": str(getattr(full_image, "device", "cpu")),
+                }))
+            except Exception:
+                pass
+                
             LOG.debug(f"[MASK DEBUG] Calling run_segmentation with bbox={bbox_t}")
-            mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t)
+            mask = run_segmentation(sam_model, full_image, bbox_xyxy=bbox_t, as_numpy=sam_as_numpy)
         except Exception as e:
             LOG.exception("SAM segmentation failed: %s", e)
             mask = None
