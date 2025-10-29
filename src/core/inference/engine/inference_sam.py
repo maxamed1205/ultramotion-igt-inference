@@ -88,12 +88,12 @@ def run_segmentation(
 
             LOG.debug(f"[SAM DEBUG] Image embedding set on full image {image_uint8.shape}")
 
-            # 🔹 Prédiction avec bbox
+            # 🔹 Prédiction avec bbox - GPU-resident par défaut
             if use_fp16 and device_type == "cuda":
                 with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
-                    masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False)
+                    masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False, as_numpy=as_numpy)
             else:
-                masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False)
+                masks, scores, _ = sam_model.predict(box=bbox_np, multimask_output=False, as_numpy=as_numpy)
 
             # --- Résultat ---
             if masks is not None and len(masks) > 0:
