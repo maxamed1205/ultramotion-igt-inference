@@ -28,7 +28,7 @@ class HungarianMatcher(nn.Module):
         "use_focal_loss",
     ]
 
-    def __init__(self, weight_dict, use_focal_loss=False, alpha=0.25, gamma=2.0, use_gpu_match=False):
+    def __init__(self, weight_dict, use_focal_loss=False, alpha=0.25, gamma=2.0, use_gpu_match=True):
         """Creates the matcher
 
         Params:
@@ -86,7 +86,8 @@ class HungarianMatcher(nn.Module):
             used_queries = set()
             
             for target_idx in range(sizes[batch_idx]):
-                best_query = target_to_query[target_idx].item()
+                best_query_tensor = target_to_query[target_idx]
+                best_query = int(best_query_tensor)  # Single conversion to int
                 if best_query not in used_queries:
                     query_indices.append(best_query)
                     target_indices.append(target_idx)
@@ -95,11 +96,12 @@ class HungarianMatcher(nn.Module):
                     # Find next best available query for this target
                     target_costs = batch_cost[:, target_idx]  # [num_queries]
                     sorted_queries = torch.argsort(target_costs)
-                    for query_idx in sorted_queries:
-                        if query_idx.item() not in used_queries:
-                            query_indices.append(query_idx.item())
+                    for query_idx_tensor in sorted_queries:
+                        query_idx = int(query_idx_tensor)  # Single conversion to int
+                        if query_idx not in used_queries:
+                            query_indices.append(query_idx)
                             target_indices.append(target_idx)
-                            used_queries.add(query_idx.item())
+                            used_queries.add(query_idx)
                             break
             
             indices.append((
@@ -193,7 +195,10 @@ class HungarianMatcher(nn.Module):
         if return_topk:
             # For topk, we need indices_pre for compatibility
             if self.use_gpu_match:
-                # Convert GPU indices back to numpy format for topk compatibility
+                # GPU-resident topk: avoid CPU conversions, use GPU-only processing
+                indices_pre = self._convert_indices_for_topk_gpu(indices)
+            else:
+                # Only convert to numpy in legacy CPU mode
                 indices_pre = [(i.cpu().numpy(), j.cpu().numpy()) for i, j in indices]
             return {
                 "indices_o2m": self.get_top_k_matches(
@@ -232,3 +237,42 @@ class HungarianMatcher(nn.Module):
         ]
         # C.copy_(C_original)
         return indices_list
+    def _convert_indices_for_topk_gpu(self, indices):
+        """Convert GPU indices to format compatible with topk without CPU transfer"""
+        # Return indices as-is for GPU processing - no CPU conversion needed
+        return indices
+
+    def _ensure_gpu_indices(self, indices):
+        """Ensure indices are in proper GPU tensor format"""
+        if isinstance(indices, list):
+            return [(torch.as_tensor(i, dtype=torch.int64, device='cuda'), 
+                    torch.as_tensor(j, dtype=torch.int64, device='cuda')) 
+                   for i, j in indices]
+        return indices
+
+    def _gpu_topk_assignment(self, C, sizes):
+        """GPU-based topk assignment approximation"""
+        indices = []
+        offset = 0
+        for batch_idx, size in enumerate(sizes):
+            batch_cost = C[batch_idx, :, offset:offset + size]
+            target_to_query = torch.argmin(batch_cost, dim=0)
+            
+            query_indices = []
+            target_indices = []
+            used_queries = set()
+            
+            for target_idx in range(size):
+                best_query = int(target_to_query[target_idx])
+                if best_query not in used_queries:
+                    query_indices.append(best_query)
+                    target_indices.append(target_idx)
+                    used_queries.add(best_query)
+                    
+            indices.append((
+                torch.tensor(query_indices, dtype=torch.int64, device=C.device),
+                torch.tensor(target_indices, dtype=torch.int64, device=C.device)
+            ))
+            offset += size
+        return indices
+
