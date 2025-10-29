@@ -51,6 +51,29 @@ L’intégration des modèles réels et les tests GPU intensifs seront réalisé
 - Format : `ts=<float> fps_in=<float> fps_out=<float> latency_ms=<float> gpu_util=<float> q_rt=<int> q_gpu=<int> drops_rt=<int> drops_gpu=<int>`
 - Contrôle : configurer le niveau via `src/config/logging.yaml`
 
+### 🎛️ Dashboard Unifié (Monitoring Graphique)
+
+Un dashboard web temps réel combine les métriques GPU Transfer et Pipeline :
+
+```powershell
+# Lancer uniquement le dashboard
+.\run_unified_dashboard.ps1
+
+# Lancer un test avec dashboard
+.\run_test_with_unified_dashboard.ps1
+```
+
+**Interface :** http://localhost:8050
+
+**Fonctionnalités :**
+- ✅ Métriques Pipeline (RX/PROC/TX, latences inter-étapes)
+- ✅ Métriques GPU Transfer (norm/pin/copy avec décomposition)
+- ✅ 4 graphiques Plotly interactifs temps réel
+- ✅ API REST (`/api/metrics/latest`, `/api/health`)
+- ✅ WebSocket pour push temps réel
+
+**Documentation :** `docs/Dashboard_Unified_README.md`
+
 Exemple de ligne KPI :
 
 ```
