@@ -42,7 +42,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # Imports internes
-from core.monitoring.monitor import get_aggregated_metrics, get_gpu_utilization
+from core.monitoring.monitor import get_aggregated_metrics, get_gpu_utilization, set_active_gateway, get_active_gateway
 from core.queues.buffers import collect_queue_metrics
 
 import torch

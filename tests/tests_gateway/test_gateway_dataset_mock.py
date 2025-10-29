@@ -474,13 +474,17 @@ if __name__ == "__main__":
     gateway = IGTGateway("127.0.0.1", 18944, 18945, target_fps=100.0)
     gateway._running = True  # mode offline
 
+    # 🎯 Configurer la référence du gateway pour les métriques en temps réel
+    from core.monitoring.monitor import set_active_gateway
+    set_active_gateway(gateway)
+
     stop_event = threading.Event()
     frame_ready = threading.Event()
 
     # ──────────────────────────────────────────────
     # OPTIONNEL : Lancer le Dashboard
     # ──────────────────────────────────────────────
-    ENABLE_DASHBOARD = False  # Mettre True pour activer (nécessite uvicorn/fastapi)
+    ENABLE_DASHBOARD = True  # 🎯 Activé pour tester l'intégration gateway
     
     dashboard_thread = None
     if ENABLE_DASHBOARD:

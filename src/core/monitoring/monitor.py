@@ -46,8 +46,27 @@ from core.monitoring.kpi import safe_log_kpi, is_kpi_enabled  # fonctions utilit
 
 # Petite mémoire tampon (deque) conservant un historique des métriques récentes (ex: pour calculer une moyenne glissante)
 _METRICS_HISTORY = deque(maxlen=30)
-# Nombre minimum de points requis avant de calculer une moyenne lissée (évite de calculer avec trop peu d’échantillons)
+# Nombre minimum de points requis avant de calculer une moyenne lissée (évite de calculer avec trop peu d'échantillons)
 _SMOOTH_MIN_POINTS = 10
+
+# 🎯 Référence globale au gateway actif pour récupération des vraies métriques
+_ACTIVE_GATEWAY = None
+
+
+def set_active_gateway(gateway):
+    """Définit la référence au gateway actif pour la collecte de métriques.
+    
+    Args:
+        gateway: Instance du gateway IGT ou None pour désactiver
+    """
+    global _ACTIVE_GATEWAY
+    _ACTIVE_GATEWAY = gateway
+    LOG.debug("Active gateway set: %s", gateway is not None)
+
+
+def get_active_gateway():
+    """Retourne la référence au gateway actif ou None si aucun gateway configuré."""
+    return _ACTIVE_GATEWAY
 
 
 def aggregate_metrics(fps_in: float, fps_out: float, latency_ms: float, gpu_util: float):
@@ -70,18 +89,61 @@ def aggregate_metrics(fps_in: float, fps_out: float, latency_ms: float, gpu_util
     return avg  # renvoie le dictionnaire contenant les moyennes lissées
 
 
-def get_aggregated_metrics() -> Optional[Dict[str, float]]:
-    """Retourne la moyenne lissée actuelle calculée à partir de l’historique en mémoire.
+def get_aggregated_metrics(gateway=None) -> Optional[Dict[str, float]]:
+    """Retourne la moyenne lissée actuelle calculée à partir de l'historique en mémoire.
+    
+    Si un gateway est fourni, récupère les vraies métriques du gateway et les fusionne
+    avec les métriques simulées. Si aucun gateway n'est fourni, utilise le gateway actif global.
 
-    Ne rajoute pas de nouvel échantillon. Retourne None si le nombre de points est insuffisant.
+    Args:
+        gateway: Instance optionnelle du gateway IGT pour récupérer les vraies métriques
+                Si None, utilise le gateway actif global (_ACTIVE_GATEWAY)
+
+    Returns:
+        Dictionnaire des métriques agrégées ou None si insuffisamment de données
     """
-    if len(_METRICS_HISTORY) < _SMOOTH_MIN_POINTS:  # si on n’a pas assez de données accumulées
+    if len(_METRICS_HISTORY) < _SMOOTH_MIN_POINTS:  # si on n'a pas assez de données accumulées
         return None
+    
+    # Calcul de la moyenne lissée à partir de l'historique simulé
     avg = {  # même logique que aggregate_metrics, mais sans ajout de nouveau point
         k: sum(m[k] for m in _METRICS_HISTORY) / len(_METRICS_HISTORY)
         for k in ("fps_in", "fps_out", "latency_ms", "gpu_util")
     }
-    return avg  # renvoie les valeurs moyennes actuelles (fps_in, fps_out, latence, GPU)
+    
+    # 🎯 FUSION avec les vraies métriques du gateway si disponible
+    active_gw = gateway or _ACTIVE_GATEWAY
+    if active_gw is not None:
+        try:
+            gw_metrics = collect_gateway_metrics(active_gw)
+            if gw_metrics:
+                # Remplace les métriques simulées par les vraies métriques du gateway
+                avg.update({
+                    "fps_rx": gw_metrics.get('fps_rx', avg.get('fps_in', 0.0)),
+                    "fps_tx": gw_metrics.get('fps_tx', avg.get('fps_out', 0.0)),
+                    "latency_ms": gw_metrics.get('avg_latency_ms', avg.get('latency_ms', 0.0)),
+                    "bytes_rx_MB": gw_metrics.get('bytes_rx_MB', 0.0),
+                    "bytes_tx_MB": gw_metrics.get('bytes_tx_MB', 0.0),
+                    "drops_rx_total": gw_metrics.get('drops_rx_total', 0),
+                    "drops_tx_total": gw_metrics.get('drops_tx_total', 0),
+                    
+                    # 🎯 Nouvelles métriques inter-étapes détaillées
+                    "interstage_rx_to_cpu_gpu_ms": gw_metrics.get('interstage_rx_to_cpu_gpu_ms', 0.0),
+                    "interstage_cpu_gpu_to_proc_ms": gw_metrics.get('interstage_cpu_gpu_to_proc_ms', 0.0),
+                    "interstage_proc_to_gpu_cpu_ms": gw_metrics.get('interstage_proc_to_gpu_cpu_ms', 0.0),
+                    "interstage_gpu_cpu_to_tx_ms": gw_metrics.get('interstage_gpu_cpu_to_tx_ms', 0.0),
+                    "interstage_rx_to_cpu_gpu_p95_ms": gw_metrics.get('interstage_rx_to_cpu_gpu_p95_ms', 0.0),
+                    "interstage_cpu_gpu_to_proc_p95_ms": gw_metrics.get('interstage_cpu_gpu_to_proc_p95_ms', 0.0),
+                    "interstage_proc_to_gpu_cpu_p95_ms": gw_metrics.get('interstage_proc_to_gpu_cpu_p95_ms', 0.0),
+                    "interstage_gpu_cpu_to_tx_p95_ms": gw_metrics.get('interstage_gpu_cpu_to_tx_p95_ms', 0.0),
+                    "interstage_samples": gw_metrics.get('interstage_samples', 0),
+                })
+                LOG.debug("Fused gateway metrics into aggregated: inter-stage samples=%d", 
+                         gw_metrics.get('interstage_samples', 0))
+        except Exception as e:
+            LOG.debug("Failed to collect gateway metrics: %s", e)
+    
+    return avg  # renvoie les valeurs moyennes (simulées ou fusionnées avec gateway)
 
 
 def get_gpu_utilization() -> float:
