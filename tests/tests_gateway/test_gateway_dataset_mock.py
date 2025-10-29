@@ -61,6 +61,10 @@ if SRC not in sys.path:
 from service.gateway.manager import IGTGateway
 from service.slicer_server import run_slicer_server
 from core.types import RawFrame, FrameMeta, Pose
+from core.preprocessing.cpu_to_gpu import (
+    init_transfer_runtime,
+    prepare_frame_for_gpu,
+)
 
 # ──────────────────────────────────────────────
 #  Logger asynchrone (sera configuré dans __main__)
@@ -108,6 +112,29 @@ def setup_logging():
             async_logging.start_health_monitor()
     else:
         print("logging.yaml non trouve -> logging desactive")
+
+
+def init_gpu_if_available():
+    """Initialise le GPU si disponible, sinon utilise CPU."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            device = "cuda"
+            LOG.info(f"[OK] CUDA disponible: {torch.cuda.get_device_name(0)}")
+        else:
+            device = "cpu"
+            LOG.info("[WARNING] CUDA non disponible, utilisation CPU")
+        
+        # Initialiser le runtime de transfert
+        init_transfer_runtime(device=device, pool_size=2, shape_hint=(512, 512))
+        LOG.info(f"[OK] Runtime GPU initialisé (device={device})")
+        return device
+    except ImportError:
+        LOG.warning("[WARNING] PyTorch non installé, utilisation CPU seulement")
+        return "cpu"
+    except Exception as e:
+        LOG.warning(f"[WARNING] Erreur GPU, fallback CPU: {e}")
+        return "cpu"
 
 
 # ──────────────────────────────────────────────
@@ -244,10 +271,14 @@ def read_dataset_images(
 def simulate_processing(
     gateway: IGTGateway,
     stop_event: threading.Event,
-    frame_ready: threading.Event
+    frame_ready: threading.Event,
+    use_gpu: bool = False,
+    gpu_device: str = "cpu"
 ):
-    """Lit la mailbox, applique un seuillage, envoie vers outbox via send_mask()."""
-    LOG.info("[PROC-SIM] Thread started (simple thresholding)")
+    """Lit la mailbox, applique un seuillage (optionnellement sur GPU), envoie vers outbox via send_mask()."""
+    proc_type = "GPU thresholding" if use_gpu else "simple thresholding"
+    LOG.info(f"[PROC-SIM] Thread started ({proc_type}, device={gpu_device})")
+    
     while not stop_event.is_set():
         # Attendre qu'une frame soit disponible (timeout 10ms pour éviter blocage infini)
         if not frame_ready.wait(timeout=0.01):
@@ -259,15 +290,41 @@ def simulate_processing(
             if frame is None:
                 continue
             
-            LOG.info(f"[PROC-SIM] Processing frame #{frame.meta.frame_id:03d}")
+            frame_id = frame.meta.frame_id
+            LOG.info(f"[PROC-SIM] Processing frame #{frame_id:03d}")
             
-            # Appliquer le seuillage
-            mask = (frame.image > 128).astype(np.uint8)
+            # ═════════════════════════════════════════
+            # TRAITEMENT : CPU classique OU GPU (selon use_gpu)
+            # ═════════════════════════════════════════
+            if use_gpu:
+                try:
+                    # Transfert CPU → GPU
+                    t0 = time.perf_counter()
+                    gpu_frame = prepare_frame_for_gpu(frame, device=gpu_device)
+                    gpu_latency = (time.perf_counter() - t0) * 1000.0
+                    
+                    # Seuillage sur GPU
+                    import torch
+                    tensor = gpu_frame.tensor
+                    mask_tensor = (tensor > 0.5).float()  # Seuil à 0.5 (équivalent 128/255)
+                    mask = (mask_tensor.squeeze().cpu().numpy() * 255).astype(np.uint8)
+                    
+                    # Log condensé (toutes les 20 frames)
+                    if frame_id % 20 == 0:
+                        LOG.info(f"[PROC-SIM] [OK] GPU: {gpu_latency:.2f}ms | {gpu_device} | mask {mask.shape}")
+                        
+                except Exception as e:
+                    LOG.warning(f"[PROC-SIM] GPU failed, fallback CPU: {e}")
+                    # Fallback vers CPU
+                    mask = (frame.image > 128).astype(np.uint8)
+            else:
+                # Traitement CPU classique (comme avant)
+                mask = (frame.image > 128).astype(np.uint8)
             
             # ✅ Créer NOUVEAU timestamp pour PROC (comme dans test_gateway_real_pipeline_mock.py)
             # Ceci permet au monitoring de calculer correctement PROC→TX latency
             meta = {
-                "frame_id": frame.meta.frame_id,
+                "frame_id": frame_id,
                 "ts": time.time(),  # ✅ NOUVEAU timestamp (timestamp PROC)
                 "state": "VISIBLE",
             }
@@ -340,16 +397,23 @@ if __name__ == "__main__":
     setup_logging()
     
     # ──────────────────────────────────────────────
+    # GPU : Initialiser si disponible
+    # ──────────────────────────────────────────────
+    gpu_device = init_gpu_if_available()
+    use_gpu = gpu_device != "cpu"
+    
+    # ──────────────────────────────────────────────
     # OPTIMISATION 1/3 : Activer timer Windows 1ms
     # ──────────────────────────────────────────────
     from utils.win_timer_resolution import enable_high_resolution_timer
     enable_high_resolution_timer()
     
     LOG.info("=" * 80)
-    LOG.info("TEST PIPELINE AVEC DATASET REEL + DASHBOARD")
+    LOG.info("TEST PIPELINE AVEC DATASET REEL + GPU + DASHBOARD")
     LOG.info("=" * 80)
     LOG.info(f"Dataset: {DATASET_PATH}")
-    LOG.info("Pipeline: RX (dataset) -> PROC (seuillage) -> TX (slicer_server)")
+    LOG.info(f"GPU: {'[OK] Activé' if use_gpu else '[OFF] Désactivé'} (device={gpu_device})")
+    LOG.info("Pipeline: RX (dataset) -> PROC (seuillage+GPU) -> TX (slicer_server)")
     LOG.info("Dashboard: http://localhost:8050 (lancement dans 2s...)")
     LOG.info("=" * 80)
 
@@ -393,7 +457,7 @@ if __name__ == "__main__":
     )
     proc_thread = threading.Thread(
         target=simulate_processing,
-        args=(gateway, stop_event, frame_ready),
+        args=(gateway, stop_event, frame_ready, use_gpu, gpu_device),
         daemon=True,
         name="PROC-Thread"
     )
