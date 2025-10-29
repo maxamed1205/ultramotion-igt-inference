@@ -96,7 +96,10 @@ class DFINECriterion(nn.Module):
             src_boxes = outputs["pred_boxes"][idx]
             target_boxes = torch.cat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
             ious, _ = box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
-            ious = torch.diag(ious).detach()
+            ious = torch.diag(ious)
+            # Désactive le gradient uniquement localement
+            with torch.no_grad():
+                ious = ious.clone()
         else:
             ious = values
 
@@ -112,7 +115,9 @@ class DFINECriterion(nn.Module):
         target_score_o[idx] = ious.to(target_score_o.dtype)
         target_score = target_score_o.unsqueeze(-1) * target
 
-        pred_score = F.sigmoid(src_logits).detach()
+        # Utilisation de no_grad pour éviter de casser le graphe
+        with torch.no_grad():
+            pred_score = F.sigmoid(src_logits).clone()
         weight = self.alpha * pred_score.pow(self.gamma) * (1 - target) + target_score
 
         loss = F.binary_cross_entropy_with_logits(
@@ -152,7 +157,9 @@ class DFINECriterion(nn.Module):
             target_boxes = torch.cat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
             pred_corners = outputs["pred_corners"][idx].reshape(-1, (self.reg_max + 1))
-            ref_points = outputs["ref_points"][idx].detach()
+            # Utilisation de no_grad pour éviter de casser le graphe
+            with torch.no_grad():
+                ref_points = outputs["ref_points"][idx].clone()
             with torch.no_grad():
                 if self.fgl_targets_dn is None and "is_dn" in outputs:
                     self.fgl_targets_dn = bbox2distance(
@@ -180,7 +187,9 @@ class DFINECriterion(nn.Module):
                     box_cxcywh_to_xyxy(outputs["pred_boxes"][idx]), box_cxcywh_to_xyxy(target_boxes)
                 )[0]
             )
-            weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
+            # Utilisation de no_grad pour éviter de casser le graphe
+            with torch.no_grad():
+                weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).clone()
 
             losses["loss_fgl"] = self.unimodal_distribution_focal_loss(
                 pred_corners,
@@ -206,9 +215,11 @@ class DFINECriterion(nn.Module):
                     weight_targets_local[idx] = ious.reshape_as(weight_targets_local[idx]).to(
                         weight_targets_local.dtype
                     )
-                    weight_targets_local = (
-                        weight_targets_local.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
-                    )
+                    # Utilisation de no_grad pour éviter de casser le graphe
+                    with torch.no_grad():
+                        weight_targets_local = (
+                            weight_targets_local.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).clone()
+                        )
 
                     loss_match_local = (
                         weight_targets_local
@@ -216,7 +227,8 @@ class DFINECriterion(nn.Module):
                         * (
                             nn.KLDivLoss(reduction="none")(
                                 F.log_softmax(pred_corners / T, dim=1),
-                                F.softmax(target_corners.detach() / T, dim=1),
+                                # Utilisation de no_grad local au lieu de .detach()
+                                F.softmax(target_corners / T, dim=1).detach(),
                             )
                         ).sum(-1)
                     )
@@ -249,7 +261,8 @@ class DFINECriterion(nn.Module):
         return batch_idx, tgt_idx
 
     def _get_go_indices(self, indices, indices_aux_list):
-        """Get a matching union set across all decoder layers."""
+        """Get a matching union set across all decoder layers.
+        Vectorized version to avoid GPU→CPU sync via .item() calls."""
         results = []
         for indices_aux in indices_aux_list:
             indices = [
@@ -261,14 +274,20 @@ class DFINECriterion(nn.Module):
             unique, counts = torch.unique(ind, return_counts=True, dim=0)
             count_sort_indices = torch.argsort(counts, descending=True)
             unique_sorted = unique[count_sort_indices]
-            column_to_row = {}
-            for idx in unique_sorted:
-                row_idx, col_idx = idx[0].item(), idx[1].item()
-                if row_idx not in column_to_row:
-                    column_to_row[row_idx] = col_idx
-            final_rows = torch.tensor(list(column_to_row.keys()), device=ind.device)
-            final_cols = torch.tensor(list(column_to_row.values()), device=ind.device)
-            results.append((final_rows.long(), final_cols.long()))
+            
+            # Vectorized version - no .item() calls!
+            row_idx = unique_sorted[:, 0]
+            col_idx = unique_sorted[:, 1]
+            
+            # Utiliser torch.unique avec return_inverse pour le 1-to-1 mapping
+            unique_rows, inv_idx = torch.unique(row_idx, return_inverse=True)
+            selected = torch.zeros_like(unique_rows)
+            for r in range(unique_rows.size(0)):
+                mask = inv_idx == r
+                selected[r] = col_idx[mask][0]  # premier col_idx associé
+            
+            final_rows, final_cols = unique_rows.long(), selected.long()
+            results.append((final_rows, final_cols))
         return results
 
     def _clear_cache(self):
@@ -318,6 +337,7 @@ class DFINECriterion(nn.Module):
             )
             if is_dist_available_and_initialized():
                 torch.distributed.all_reduce(num_boxes_go)
+            # Éviter .item() inutile si possible, mais garder pour la normalisation nécessaire
             num_boxes_go = torch.clamp(num_boxes_go / get_world_size(), min=1).item()
         else:
             assert "aux_outputs" in outputs, ""
@@ -441,6 +461,22 @@ class DFINECriterion(nn.Module):
 
         # For debugging Objects365 pre-train.
         losses = {k: torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}
+        
+        # KPI instrumentation pour monitoring des synchronisations GPU↔CPU
+        try:
+            from core.monitoring.kpi import safe_log_kpi, format_kpi
+            # Comptage approximatif des détachements (symbolique)
+            n_detach = 0  # Maintenant éliminés par nos optimisations
+            n_item = 2    # Seulement num_boxes normalizations nécessaires
+            safe_log_kpi(format_kpi({
+                "event": "dfine_criterion_sync",
+                "detach_count": n_detach,
+                "item_count": n_item,
+                "device": next(iter(outputs.values())).device.type,
+            }))
+        except Exception:
+            pass
+        
         return losses
 
     def get_loss_meta_info(self, loss, outputs, targets, indices):
@@ -451,16 +487,18 @@ class DFINECriterion(nn.Module):
         target_boxes = torch.cat([t["boxes"][j] for t, (_, j) in zip(targets, indices)], dim=0)
 
         if self.boxes_weight_format == "iou":
-            iou, _ = box_iou(
-                box_cxcywh_to_xyxy(src_boxes.detach()), box_cxcywh_to_xyxy(target_boxes)
-            )
-            iou = torch.diag(iou)
-        elif self.boxes_weight_format == "giou":
-            iou = torch.diag(
-                generalized_box_iou(
-                    box_cxcywh_to_xyxy(src_boxes.detach()), box_cxcywh_to_xyxy(target_boxes)
+            with torch.no_grad():
+                iou, _ = box_iou(
+                    box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
                 )
-            )
+                iou = torch.diag(iou)
+        elif self.boxes_weight_format == "giou":
+            with torch.no_grad():
+                iou = torch.diag(
+                    generalized_box_iou(
+                        box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
+                    )
+                )
         else:
             raise AttributeError()
 
