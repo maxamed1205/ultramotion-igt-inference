@@ -174,7 +174,7 @@ def infer_dfine(model: torch.nn.Module,
 def postprocess_dfine(outputs: dict,
                       img_size: Tuple[int, int],
                       conf_thresh: float = 0.3,
-                      return_gpu_tensor: bool = False) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
+                      return_gpu_tensor: bool = True) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
     """Extrait la bbox la plus confiante (bbox_t en xyxy absolu, conf_t).
     Supporte 2 conventions d'outputs :
       - Style DETR: outputs['pred_logits'] (N,C), outputs['pred_boxes'] (N,4) en cxcywh normalisé.
@@ -312,7 +312,7 @@ def run_dfine_detection(model: torch.nn.Module,
                         stream: Optional[torch.cuda.Stream] = None,
                         conf_thresh: float = 0.3,
                         allow_cpu_fallback: bool = False,
-                        return_gpu_tensor: bool = False) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
+                        return_gpu_tensor: bool = True) -> Tuple[Union[Optional[np.ndarray], Optional[torch.Tensor]], Union[float, torch.Tensor]]:
     """
     Pipeline complet : frame_gpu → preprocess → infer → postprocess
     Entrées :
