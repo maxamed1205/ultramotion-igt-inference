@@ -1,5 +1,6 @@
 from typing import Any, Optional, Tuple
 import logging
+import time
 import numpy as np
 
 try:
@@ -10,8 +11,24 @@ except Exception:  # pragma: no cover - allow import when torch missing
 LOG = logging.getLogger("igt.inference")
 
 
-def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.ndarray] = None) -> Optional[np.ndarray]:
-    """Exécute MobileSAM sur l'image complète avec une bbox et retourne le mask binaire."""
+def run_segmentation(
+    sam_model: Any,
+    image: Any,
+    bbox_xyxy: Optional[np.ndarray] = None,
+    as_numpy: bool = False,
+) -> Optional[Any]:
+    """Exécute MobileSAM sur l'image complète avec une bbox et retourne le mask binaire.
+    
+    Args:
+        sam_model: Le modèle SAM ou SamPredictor
+        image: Image d'entrée (numpy array ou tensor)
+        bbox_xyxy: Bounding box au format [x1, y1, x2, y2]
+        as_numpy: Si True, retourne numpy array (mode legacy).
+                 Si False, retourne tensor GPU (mode GPU-resident).
+    
+    Returns:
+        Mask binaire (numpy array si as_numpy=True, tensor si as_numpy=False)
+    """
     if sam_model is None or image is None:
         return None
 
@@ -51,7 +68,7 @@ def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.n
             bbox_np = np.array(bbox_xyxy, dtype=np.float32).flatten()
             if bbox_np.size != 4:
                 LOG.warning("Invalid bbox shape: %s, falling back to legacy mode", bbox_np.shape)
-                return _run_segmentation_legacy(sam_model, image)
+                return _run_segmentation_legacy(sam_model, image, as_numpy)
 
             LOG.debug(f"[SAM DEBUG] Received bbox_xyxy={bbox_np}")
 
@@ -75,7 +92,23 @@ def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.n
             if masks is not None and len(masks) > 0:
                 mask = masks[0]
                 LOG.debug(f"SAM prediction successful: mask shape={mask.shape}, score={scores[0] if len(scores) > 0 else 'N/A'}")
-                return mask.astype(bool)
+                
+                if as_numpy:
+                    return mask.astype(bool)
+                else:
+                    # Mode GPU-resident: garde le tensor sur GPU
+                    if isinstance(mask, np.ndarray):
+                        # Détection du device du modèle
+                        try:
+                            model = getattr(sam_model, 'model', sam_model)
+                            device = next(model.parameters()).device
+                        except Exception:
+                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                        
+                        mask_t = torch.from_numpy(mask).to(device)
+                        return mask_t > 0.5
+                    else:
+                        return mask  # déjà tensor GPU
             else:
                 LOG.warning("SAM predict returned no masks")
                 return None
@@ -86,10 +119,10 @@ def run_segmentation(sam_model: Any, image: np.ndarray, bbox_xyxy: Optional[np.n
 
     # --- LEGACY MODE ---
     LOG.debug("Using legacy SAM inference (no bbox or no predictor API)")
-    return _run_segmentation_legacy(sam_model, image)
+    return _run_segmentation_legacy(sam_model, image, as_numpy)
 
 
-def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray) -> Optional[np.ndarray]:
+def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray, as_numpy: bool = False) -> Optional[Any]:
     """Legacy SAM inference for ROI-based segmentation (original implementation)."""
     if sam_model is None or roi is None:
         return None
@@ -180,38 +213,66 @@ def _run_segmentation_legacy(sam_model: Any, roi: np.ndarray) -> Optional[np.nda
 
         LOG.debug(f"Extracted mask type: {type(mask)}, shape attempt: {mask.shape if hasattr(mask, 'shape') else 'N/A'}")
 
-        # Convert to numpy and normalize common output shapes to a 2D mask (HxW)
-        try:
-            if hasattr(mask, "detach"):
-                m = mask.detach().cpu().numpy()
-            else:
-                m = np.array(mask)
-        except Exception:
+        # Convert to numpy and normalize common output shapes to a 2D mask (HxW) OR keep as GPU tensor
+        if mask is None:
             return None
 
-        # m may be BxCxHxW, CxHxW, BxHxW, or HxW. Try to reduce to HxW:
+        # Instrumentation KPI pour debug visuel
         try:
-            if isinstance(m, np.ndarray):
-                if m.ndim == 4:
-                    # B x C x H x W -> choose first batch and first channel
-                    if m.shape[0] == 0:
-                        return None
-                    return m[0, 0]
-                if m.ndim == 3:
-                    # C x H x W or B x H x W
-                    # If first dim is 1 -> squeeze
-                    if m.shape[0] == 1:
-                        return m[0]
-                    # If shape looks like channels (3, H, W), there's no mask -> return None
-                    if m.shape[0] == 3:
-                        # no valid binary mask
-                        return None
-                    # Otherwise assume B x H x W -> take first
-                    return m[0]
-                if m.ndim == 2:
-                    return m
+            from core.monitoring.kpi import safe_log_kpi, format_kpi
+            safe_log_kpi(format_kpi({
+                "ts": time.time(),
+                "event": "sam_mask_output",
+                "as_numpy": int(as_numpy),
+                "device": str(getattr(mask, "device", "cpu")),
+            }))
         except Exception:
-            return None
+            pass
+
+        if hasattr(mask, "detach"):
+            # 🚀 Nouveau chemin GPU-resident
+            if not as_numpy:
+                return mask.detach()  # reste sur GPU (pas de .cpu())
+            else:
+                # mode rétrocompatibilité
+                try:
+                    m = mask.detach().cpu().numpy()
+                except Exception:
+                    return None
+        else:
+            # non-torch : fallback numpy
+            try:
+                m = np.array(mask)
+            except Exception:
+                return None
+
+        # Réduction dimensionnelle seulement pour le mode as_numpy=True
+        if as_numpy:
+            try:
+                if isinstance(m, np.ndarray):
+                    if m.ndim == 4:
+                        # B x C x H x W -> choose first batch and first channel
+                        if m.shape[0] == 0:
+                            return None
+                        return m[0, 0]
+                    if m.ndim == 3:
+                        # C x H x W or B x H x W
+                        # If first dim is 1 -> squeeze
+                        if m.shape[0] == 1:
+                            return m[0]
+                        # If shape looks like channels (3, H, W), there's no mask -> return None
+                        if m.shape[0] == 3:
+                            # no valid binary mask
+                            return None
+                        # Otherwise assume B x H x W -> take first
+                        return m[0]
+                    if m.ndim == 2:
+                        return m
+            except Exception:
+                return None
+        else:
+            # GPU tensor : on ne le réduit pas ici, le ResultPacket ou postprocess s'en charge
+            return mask
 
         return None
     except Exception as e:
