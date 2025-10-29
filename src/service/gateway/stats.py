@@ -66,9 +66,28 @@ class GatewayStatsDict(TypedDict):
     latency_ms_max: float  # latence maximale observée (plus grand délai RX→TX enregistré)
     latency_samples: int   # nombre total d’échantillons de latence conservés dans le buffer (max ≈ 200)
 
-    # --- Indicateurs d’anomalie et de suivi ---
-    latency_orphans: int   # nombre de frames TX sans RX correspondant (frames “orphelines” dues à une désynchro ou un drop)
+    # --- Indicateurs d'anomalie et de suivi ---
+    latency_orphans: int   # nombre de frames TX sans RX correspondant (frames "orphelines" dues à une désynchro ou un drop)
     snapshot_count: int    # compteur global de snapshots générés depuis le démarrage (utile pour suivre la fréquence de reporting)
+    
+    # 🎯 ═══════════════════════════════════════════════════════════════════
+    # NOUVELLES MÉTRIQUES INTER-ÉTAPES (Workflow GPU-résident détaillé)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # --- Latences inter-étapes moyennes (en ms) ---
+    interstage_rx_to_cpu_gpu_ms: float      # RX → CPU-to-GPU transfer latency
+    interstage_cpu_gpu_to_proc_ms: float    # CPU-to-GPU → PROC(GPU) latency
+    interstage_proc_to_gpu_cpu_ms: float    # PROC(GPU) → GPU-to-CPU transfer latency
+    interstage_gpu_cpu_to_tx_ms: float      # GPU-to-CPU → TX latency
+    
+    # --- Percentiles inter-étapes (P95) ---
+    interstage_rx_to_cpu_gpu_p95_ms: float  # RX → CPU-to-GPU P95
+    interstage_cpu_gpu_to_proc_p95_ms: float # CPU-to-GPU → PROC(GPU) P95
+    interstage_proc_to_gpu_cpu_p95_ms: float # PROC(GPU) → GPU-to-CPU P95
+    interstage_gpu_cpu_to_tx_p95_ms: float  # GPU-to-CPU → TX P95
+    
+    # --- Nombre d'échantillons inter-étapes ---
+    interstage_samples: int                  # nombre d'échantillons de métriques inter-étapes disponibles
 
 
 @dataclass(frozen=True, slots = True)
@@ -108,9 +127,28 @@ class GatewayStatsSnapshot:
     latency_ms_max: float  # latence maximale observée (pic de latence récent)
     latency_samples: int   # nombre d’échantillons de latence actuellement conservés dans le buffer (max ≈ 200)
 
-    # --- Indicateurs d’anomalie et de suivi ---
+    # --- Indicateurs d'anomalie et de suivi ---
     latency_orphans: int   # nombre de frames TX sans RX correspondant (frames "orphelines" – ID manquant ou drop)
     snapshot_count: int    # compteur global du nombre de snapshots générés (permet de tracer la fréquence de reporting)
+
+    # 🎯 ═══════════════════════════════════════════════════════════════════
+    # NOUVELLES MÉTRIQUES INTER-ÉTAPES (Workflow GPU-résident détaillé)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # --- Latences inter-étapes moyennes (en ms) ---
+    interstage_rx_to_cpu_gpu_ms: float      # RX → CPU-to-GPU transfer latency
+    interstage_cpu_gpu_to_proc_ms: float    # CPU-to-GPU → PROC(GPU) latency
+    interstage_proc_to_gpu_cpu_ms: float    # PROC(GPU) → GPU-to-CPU transfer latency
+    interstage_gpu_cpu_to_tx_ms: float      # GPU-to-CPU → TX latency
+    
+    # --- Percentiles inter-étapes (P95) ---
+    interstage_rx_to_cpu_gpu_p95_ms: float  # RX → CPU-to-GPU P95
+    interstage_cpu_gpu_to_proc_p95_ms: float # CPU-to-GPU → PROC(GPU) P95
+    interstage_proc_to_gpu_cpu_p95_ms: float # PROC(GPU) → GPU-to-CPU P95
+    interstage_gpu_cpu_to_tx_p95_ms: float  # GPU-to-CPU → TX P95
+    
+    # --- Nombre d'échantillons inter-étapes ---
+    interstage_samples: int                  # nombre d'échantillons de métriques inter-étapes disponibles
 
     def to_dict(self) -> GatewayStatsDict:
         """Convertit le snapshot en dictionnaire standard pour la journalisation ou la sérialisation.
@@ -143,9 +181,19 @@ class GatewayStatsSnapshot:
             latency_ms_p95=self.latency_ms_p95,   # latence au 95e percentile (95 % des frames plus rapides)
             latency_ms_max=self.latency_ms_max,   # latence maximale observée sur la fenêtre récente
             latency_samples=self.latency_samples, # nombre d’échantillons utilisés pour les statistiques de latence
-            # --- Indicateurs d’anomalie et de suivi ---
-            latency_orphans=self.latency_orphans, # frames TX sans RX correspondant (frames “orphelines”)
+            # --- Indicateurs d'anomalie et de suivi ---
+            latency_orphans=self.latency_orphans, # frames TX sans RX correspondant (frames "orphelines")
             snapshot_count=self.snapshot_count,   # compteur global de snapshots générés depuis le démarrage
+            # 🎯 --- Métriques inter-étapes (Workflow GPU-résident détaillé) ---
+            interstage_rx_to_cpu_gpu_ms=self.interstage_rx_to_cpu_gpu_ms,         # RX → CPU-to-GPU latency moyenne
+            interstage_cpu_gpu_to_proc_ms=self.interstage_cpu_gpu_to_proc_ms,     # CPU-to-GPU → PROC(GPU) latency moyenne
+            interstage_proc_to_gpu_cpu_ms=self.interstage_proc_to_gpu_cpu_ms,     # PROC(GPU) → GPU-to-CPU latency moyenne
+            interstage_gpu_cpu_to_tx_ms=self.interstage_gpu_cpu_to_tx_ms,         # GPU-to-CPU → TX latency moyenne
+            interstage_rx_to_cpu_gpu_p95_ms=self.interstage_rx_to_cpu_gpu_p95_ms, # RX → CPU-to-GPU P95
+            interstage_cpu_gpu_to_proc_p95_ms=self.interstage_cpu_gpu_to_proc_p95_ms, # CPU-to-GPU → PROC(GPU) P95
+            interstage_proc_to_gpu_cpu_p95_ms=self.interstage_proc_to_gpu_cpu_p95_ms, # PROC(GPU) → GPU-to-CPU P95
+            interstage_gpu_cpu_to_tx_p95_ms=self.interstage_gpu_cpu_to_tx_p95_ms, # GPU-to-CPU → TX P95
+            interstage_samples=self.interstage_samples,                            # nombre d'échantillons inter-étapes
         )
 
 
@@ -217,6 +265,20 @@ class GatewayStats:
 
         # --- Compteur global de snapshots ---
         self._snapshot_count: int = 0                  # nombre total de snapshots générés (utile pour le suivi ou les logs)
+
+        # 🎯 ═══════════════════════════════════════════════════════════════════
+        # NOUVELLES MÉTRIQUES INTER-ÉTAPES (Workflow GPU-résident détaillé)
+        # ═══════════════════════════════════════════════════════════════════
+        
+        # --- Buffers pour métriques inter-étapes ---
+        self._interstage_window_size = int(latency_window_size)  # même taille que latency_window_size
+        self._interstage_rx_to_cpu_gpu: Deque[float] = collections.deque(maxlen=self._interstage_window_size)
+        self._interstage_cpu_gpu_to_proc: Deque[float] = collections.deque(maxlen=self._interstage_window_size)
+        self._interstage_proc_to_gpu_cpu: Deque[float] = collections.deque(maxlen=self._interstage_window_size)
+        self._interstage_gpu_cpu_to_tx: Deque[float] = collections.deque(maxlen=self._interstage_window_size)
+        
+        # --- Stockage temporaire des timestamps inter-étapes ---
+        self._pending_interstage: Dict[int, Dict[str, float]] = {}  # frame_id → {t_rx, t1, t2, t3, t_tx}
 
 
     # ---------------------- legacy API (preserved) ----------------------
@@ -323,10 +385,18 @@ class GatewayStats:
                     idx = max(0, int(0.95 * (latency_samples - 1)))        # index du 95e percentile
                     latency_ms_p95 = float(sorted_lat[idx])                # valeur du percentile 95 manuelle
             else:
-                # cas où aucune mesure de latence n’est encore disponible
+                # cas où aucune mesure de latence n'est encore disponible
                 latency_ms_avg = 0.0                                       # latence moyenne par défaut
                 latency_ms_p95 = 0.0                                       # latence au 95e percentile par défaut
                 latency_ms_max = 0.0                                       # latence maximale par défaut
+
+            # 🎯 --- Calcul des statistiques inter-étapes (Workflow GPU-résident détaillé) ---
+            rx_to_cpu_gpu_avg, rx_to_cpu_gpu_p95 = self._calculate_interstage_stats(self._interstage_rx_to_cpu_gpu)
+            cpu_gpu_to_proc_avg, cpu_gpu_to_proc_p95 = self._calculate_interstage_stats(self._interstage_cpu_gpu_to_proc)
+            proc_to_gpu_cpu_avg, proc_to_gpu_cpu_p95 = self._calculate_interstage_stats(self._interstage_proc_to_gpu_cpu)
+            gpu_cpu_to_tx_avg, gpu_cpu_to_tx_p95 = self._calculate_interstage_stats(self._interstage_gpu_cpu_to_tx)
+            interstage_samples_count = min(len(self._interstage_rx_to_cpu_gpu), len(self._interstage_cpu_gpu_to_proc),
+                                         len(self._interstage_proc_to_gpu_cpu), len(self._interstage_gpu_cpu_to_tx))
 
             # --- Incrément du compteur global de snapshots ---
             self._snapshot_count += 1                                      # incrémente le nombre total d’instantanés générés
@@ -349,9 +419,19 @@ class GatewayStats:
                 latency_ms_avg=latency_ms_avg,                             # latence moyenne RX→TX
                 latency_ms_p95=latency_ms_p95,                             # latence au 95e percentile
                 latency_ms_max=latency_ms_max,                             # latence maximale récente
-                latency_samples=latency_samples,                           # nombre d’échantillons de latence utilisés
+                latency_samples=latency_samples,                           # nombre d'échantillons de latence utilisés
                 latency_orphans=self._latency_orphans,                     # nombre de frames TX sans RX correspondant
                 snapshot_count=self._snapshot_count,                       # numéro séquentiel du snapshot
+                # 🎯 Métriques inter-étapes (Workflow GPU-résident détaillé)
+                interstage_rx_to_cpu_gpu_ms=rx_to_cpu_gpu_avg,            # RX → CPU-to-GPU latency moyenne
+                interstage_cpu_gpu_to_proc_ms=cpu_gpu_to_proc_avg,        # CPU-to-GPU → PROC(GPU) latency moyenne
+                interstage_proc_to_gpu_cpu_ms=proc_to_gpu_cpu_avg,        # PROC(GPU) → GPU-to-CPU latency moyenne
+                interstage_gpu_cpu_to_tx_ms=gpu_cpu_to_tx_avg,            # GPU-to-CPU → TX latency moyenne
+                interstage_rx_to_cpu_gpu_p95_ms=rx_to_cpu_gpu_p95,        # RX → CPU-to-GPU P95
+                interstage_cpu_gpu_to_proc_p95_ms=cpu_gpu_to_proc_p95,    # CPU-to-GPU → PROC(GPU) P95
+                interstage_proc_to_gpu_cpu_p95_ms=proc_to_gpu_cpu_p95,    # PROC(GPU) → GPU-to-CPU P95
+                interstage_gpu_cpu_to_tx_p95_ms=gpu_cpu_to_tx_p95,        # GPU-to-CPU → TX P95
+                interstage_samples=interstage_samples_count,               # nombre d'échantillons inter-étapes
             )
 
             # attach optional drop counters from global KPI module if present
@@ -457,6 +537,164 @@ class GatewayStats:
         if removed and LOG.isEnabledFor(logging.DEBUG):
             LOG.debug("Pruned %d stale pending_rx entries", removed)  # log informatif du nettoyage effectué
 
+    # 🎯 ═══════════════════════════════════════════════════════════════════
+    # NOUVELLES MÉTHODES INTER-ÉTAPES (Workflow GPU-résident détaillé)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def mark_interstage_rx(self, frame_id: int, t_rx: float) -> None:
+        """Enregistre le début du workflow inter-étapes (timestamp RX).
+        
+        Args:
+            frame_id: identifiant unique de la frame
+            t_rx: timestamp de réception RX
+        """
+        try:
+            fid = int(frame_id)
+        except Exception:
+            return
+        with self._lock:
+            if fid not in self._pending_interstage:
+                self._pending_interstage[fid] = {}
+            self._pending_interstage[fid]['t_rx'] = float(t_rx)
+
+    def mark_interstage_cpu_to_gpu(self, frame_id: int, t1: float) -> None:
+        """Enregistre la fin du transfert CPU→GPU (t1).
+        
+        Args:
+            frame_id: identifiant unique de la frame
+            t1: timestamp de fin du transfert CPU→GPU
+        """
+        try:
+            fid = int(frame_id)
+        except Exception:
+            return
+        with self._lock:
+            if fid not in self._pending_interstage:
+                self._pending_interstage[fid] = {}
+            self._pending_interstage[fid]['t1'] = float(t1)
+
+    def mark_interstage_proc_done(self, frame_id: int, t2: float) -> None:
+        """Enregistre la fin du processing GPU (t2).
+        
+        Args:
+            frame_id: identifiant unique de la frame
+            t2: timestamp de fin du processing GPU
+        """
+        try:
+            fid = int(frame_id)
+        except Exception:
+            return
+        with self._lock:
+            if fid not in self._pending_interstage:
+                self._pending_interstage[fid] = {}
+            self._pending_interstage[fid]['t2'] = float(t2)
+
+    def mark_interstage_gpu_to_cpu(self, frame_id: int, t3: float) -> None:
+        """Enregistre la fin du transfert GPU→CPU (t3).
+        
+        Args:
+            frame_id: identifiant unique de la frame  
+            t3: timestamp de fin du transfert GPU→CPU
+        """
+        try:
+            fid = int(frame_id)
+        except Exception:
+            return
+        with self._lock:
+            if fid not in self._pending_interstage:
+                self._pending_interstage[fid] = {}
+            self._pending_interstage[fid]['t3'] = float(t3)
+
+    def mark_interstage_tx(self, frame_id: int, t_tx: float) -> None:
+        """Enregistre la fin du workflow (timestamp TX) et calcule toutes les latences inter-étapes.
+        
+        Args:
+            frame_id: identifiant unique de la frame
+            t_tx: timestamp TX final
+        """
+        try:
+            fid = int(frame_id)
+        except Exception:
+            return
+        
+        with self._lock:
+            if fid not in self._pending_interstage:
+                return  # Pas de données inter-étapes pour cette frame
+            
+            stages = self._pending_interstage[fid]
+            stages['t_tx'] = float(t_tx)
+            
+            # Calcul des latences inter-étapes (en ms) si tous les timestamps sont présents
+            if all(k in stages for k in ['t_rx', 't1', 't2', 't3', 't_tx']):
+                # RX → CPU-to-GPU
+                rx_to_cpu_gpu_ms = (stages['t1'] - stages['t_rx']) * 1000.0
+                # CPU-to-GPU → PROC(GPU)  
+                cpu_gpu_to_proc_ms = (stages['t2'] - stages['t1']) * 1000.0
+                # PROC(GPU) → GPU-to-CPU
+                proc_to_gpu_cpu_ms = (stages['t3'] - stages['t2']) * 1000.0
+                # GPU-to-CPU → TX
+                gpu_cpu_to_tx_ms = (stages['t_tx'] - stages['t3']) * 1000.0
+                
+                # Stockage des métriques dans les buffers
+                self._interstage_rx_to_cpu_gpu.append(rx_to_cpu_gpu_ms)
+                self._interstage_cpu_gpu_to_proc.append(cpu_gpu_to_proc_ms)
+                self._interstage_proc_to_gpu_cpu.append(proc_to_gpu_cpu_ms)
+                self._interstage_gpu_cpu_to_tx.append(gpu_cpu_to_tx_ms)
+                
+                if LOG.isEnabledFor(logging.DEBUG):
+                    LOG.debug("Interstage latencies frame_id=%s: RX→GPU=%.2f, GPU→PROC=%.2f, PROC→CPU=%.2f, CPU→TX=%.2f ms", 
+                             fid, rx_to_cpu_gpu_ms, cpu_gpu_to_proc_ms, proc_to_gpu_cpu_ms, gpu_cpu_to_tx_ms)
+            
+            # Nettoyage de l'entrée traitée
+            del self._pending_interstage[fid]
+            
+            # Nettoyage périodique
+            if len(self._pending_interstage) % 50 == 0:
+                self._prune_pending_interstage()
+
+    def _prune_pending_interstage(self, max_age_s: float = 5.0) -> None:
+        """Supprime les entrées inter-étapes âgées de plus de max_age_s secondes."""
+        now = time.time()
+        removed = 0
+        keys_to_remove = []
+        
+        for fid, stages in self._pending_interstage.items():
+            # Utilise t_rx comme référence temporelle
+            if 't_rx' in stages and now - stages['t_rx'] > max_age_s:
+                keys_to_remove.append(fid)
+        
+        for k in keys_to_remove:
+            try:
+                del self._pending_interstage[k]
+                removed += 1
+            except KeyError:
+                pass
+        
+        if removed and LOG.isEnabledFor(logging.DEBUG):
+            LOG.debug("Pruned %d stale pending_interstage entries", removed)
+
+    def _calculate_interstage_stats(self, buffer: Deque[float]) -> tuple[float, float]:
+        """Calcule moyenne et P95 pour un buffer de métriques inter-étapes.
+        
+        Returns:
+            tuple: (moyenne_ms, p95_ms)
+        """
+        if not buffer:
+            return 0.0, 0.0
+        
+        data = list(buffer)
+        avg_ms = sum(data) / len(data)
+        
+        # Calcul P95
+        if len(data) >= 2:
+            sorted_data = sorted(data)
+            p95_idx = int(0.95 * len(sorted_data))
+            p95_ms = sorted_data[min(p95_idx, len(sorted_data) - 1)]
+        else:
+            p95_ms = avg_ms
+        
+        return avg_ms, p95_ms
+
     # ---------------------- Gestion générale ----------------------
     def reset(self, cold_start: bool = False) -> None:
         """Réinitialise les compteurs et buffers volatils.
@@ -485,5 +723,11 @@ class GatewayStats:
             self._latency_buffer_ms.clear()          # efface le buffer de latence
             self._pending_rx.clear()                 # efface la table des frames en attente de TX
             self._latency_orphans = 0                # remet à zéro le compteur de frames orphelines
+            # 🎯 Réinitialisation des métriques inter-étapes
+            self._interstage_rx_to_cpu_gpu.clear()   # efface le buffer RX→CPU-to-GPU
+            self._interstage_cpu_gpu_to_proc.clear() # efface le buffer CPU-to-GPU→PROC
+            self._interstage_proc_to_gpu_cpu.clear() # efface le buffer PROC→GPU-to-CPU
+            self._interstage_gpu_cpu_to_tx.clear()   # efface le buffer GPU-to-CPU→TX
+            self._pending_interstage.clear()         # efface la table des timestamps inter-étapes
             if cold_start:                           
-                self._started_at = time.time()       # redéfinit l’heure de démarrage si redémarrage complet demandé
+                self._started_at = time.time()       # redéfinit l'heure de démarrage si redémarrage complet demandé

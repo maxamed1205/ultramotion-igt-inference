@@ -58,6 +58,7 @@ if SRC not in sys.path:
 # ──────────────────────────────────────────────
 #  Imports pipeline réelle
 # ──────────────────────────────────────────────
+import torch  # ✅ Import torch pour les opérations GPU
 from service.gateway.manager import IGTGateway
 from service.slicer_server import run_slicer_server
 from core.types import RawFrame, FrameMeta, Pose
@@ -293,41 +294,79 @@ def simulate_processing(
             frame_id = frame.meta.frame_id
             LOG.info(f"[PROC-SIM] Processing frame #{frame_id:03d}")
             
-            # ═════════════════════════════════════════
-            # TRAITEMENT : CPU classique OU GPU (selon use_gpu)
-            # ═════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════════
+            # 🎯 MÉTRIQUES INTER-ÉTAPES DÉTAILLÉES pour le workflow complet :
+            # RX → CPU-to-GPU → PROC(GPU) → GPU-to-CPU → TX
+            # ═══════════════════════════════════════════════════════════════════
+            
+            # t_rx déjà enregistré via mark_rx() dans simulate_rx()
+            t_rx = frame.meta.ts  # Timestamp RX original
+            
+            # ⏱️ Enregistrer début du workflow inter-étapes
+            gateway.stats.mark_interstage_rx(frame_id, t_rx)
+            
             if use_gpu:
                 try:
-                    # Transfert CPU → GPU
-                    t0 = time.perf_counter()
+                    # ⏱️ Étape 1: CPU → GPU transfer
+                    t1_start = time.perf_counter()
                     gpu_frame = prepare_frame_for_gpu(frame, device=gpu_device)
-                    gpu_latency = (time.perf_counter() - t0) * 1000.0
+                    t1_end = time.perf_counter()
+                    gateway.stats.mark_interstage_cpu_to_gpu(frame_id, t1_end)
+                    cpu_to_gpu_ms = (t1_end - t1_start) * 1000.0
                     
-                    # Seuillage sur GPU
-                    import torch
+                    # ⏱️ Étape 2: PROC (GPU processing)
+                    t2_start = time.perf_counter()
                     tensor = gpu_frame.tensor
                     mask_tensor = (tensor > 0.5).float()  # Seuil à 0.5 (équivalent 128/255)
-                    mask = (mask_tensor.squeeze().cpu().numpy() * 255).astype(np.uint8)
+                    t2_end = time.perf_counter()
+                    gateway.stats.mark_interstage_proc_done(frame_id, t2_end)
+                    proc_gpu_ms = (t2_end - t2_start) * 1000.0
                     
-                    # Log condensé (toutes les 20 frames)
+                    # ⏱️ Étape 3: GPU → CPU transfer (final result)
+                    t3_start = time.perf_counter()
+                    mask = (mask_tensor.squeeze().cpu().numpy() * 255).astype(np.uint8)
+                    t3_end = time.perf_counter()
+                    gateway.stats.mark_interstage_gpu_to_cpu(frame_id, t3_end)
+                    gpu_to_cpu_ms = (t3_end - t3_start) * 1000.0
+                    
+                    # ✅ Calcul des latences inter-étapes par couples
+                    rx_to_cpu_gpu = cpu_to_gpu_ms  # RX → CPU-to-GPU (t1_start était juste après RX)
+                    cpu_gpu_to_proc = proc_gpu_ms   # CPU-to-GPU → PROC(GPU)
+                    proc_to_gpu_cpu = gpu_to_cpu_ms # PROC(GPU) → GPU-to-CPU
+                    # gpu_cpu_to_tx sera calculé automatiquement par mark_interstage_tx()
+                    
+                    # 📊 Log détaillé des métriques inter-étapes (toutes les 20 frames)
                     if frame_id % 20 == 0:
-                        LOG.info(f"[PROC-SIM] [OK] GPU: {gpu_latency:.2f}ms | {gpu_device} | mask {mask.shape}")
+                        total_processing = cpu_to_gpu_ms + proc_gpu_ms + gpu_to_cpu_ms
+                        LOG.info(f"[PROC-SIM] 🎯 Inter-stage latencies #{frame_id:03d}:")
+                        LOG.info(f"  RX → CPU-to-GPU:    {rx_to_cpu_gpu:.2f}ms")
+                        LOG.info(f"  CPU-to-GPU → PROC:  {cpu_gpu_to_proc:.2f}ms") 
+                        LOG.info(f"  PROC → GPU-to-CPU:  {proc_to_gpu_cpu:.2f}ms")
+                        LOG.info(f"  Total processing:   {total_processing:.2f}ms | {gpu_device}")
                         
                 except Exception as e:
                     LOG.warning(f"[PROC-SIM] GPU failed, fallback CPU: {e}")
-                    # Fallback vers CPU
+                    # Fallback vers CPU (pas de métriques inter-étapes détaillées)
                     mask = (frame.image > 128).astype(np.uint8)
             else:
-                # Traitement CPU classique (comme avant)
+                # Traitement CPU classique (pas de transferts GPU)
+                t_cpu_start = time.perf_counter()
                 mask = (frame.image > 128).astype(np.uint8)
+                t_cpu_end = time.perf_counter()
+                cpu_proc_ms = (t_cpu_end - t_cpu_start) * 1000.0
+                
+                if frame_id % 20 == 0:
+                    LOG.info(f"[PROC-SIM] CPU processing: {cpu_proc_ms:.2f}ms")
             
-            # ✅ Créer NOUVEAU timestamp pour PROC (comme dans test_gateway_real_pipeline_mock.py)
-            # Ceci permet au monitoring de calculer correctement PROC→TX latency
+            # ✅ Timestamp final pour PROC→TX latency measurement
+            t_proc_complete = time.perf_counter()
             meta = {
                 "frame_id": frame_id,
-                "ts": time.time(),  # ✅ NOUVEAU timestamp (timestamp PROC)
+                "ts": t_proc_complete,  # ⏱️ Timestamp de fin de PROC (début TX)
                 "state": "VISIBLE",
             }
+            
+            # ⏱️ TX final - ceci appellera mark_tx() et mark_interstage_tx() automatiquement
             gateway.send_mask(mask, meta)
             
         except Exception as e:

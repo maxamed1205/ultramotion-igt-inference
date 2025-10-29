@@ -341,6 +341,8 @@ class IGTGateway:
                 tx_ts = meta.get("ts", time.time())  # Timestamp d’envoi (par défaut temps actuel).
                 if fid is not None:
                     self.stats.mark_tx(int(fid), float(tx_ts))  # Enregistre le timestamp TX pour cette frame dans GatewayStats.
+                    # 🎯 Enregistrer aussi le timestamp TX pour les métriques inter-étapes détaillées
+                    self.stats.mark_interstage_tx(int(fid), float(tx_ts))  # Calcule automatiquement toutes les latences inter-étapes
                     if LOG.isEnabledFor(logging.DEBUG):
                         snap2 = self.stats.snapshot()  # Récupère les stats mises à jour après le marquage TX.
                         instant = float(snap2.get("latency_ms_max", 0.0))  # Dernière latence mesurée (en ms).
