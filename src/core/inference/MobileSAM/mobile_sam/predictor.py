@@ -6,6 +6,7 @@
 
 import numpy as np
 import torch
+import time
 
 from mobile_sam.modeling import Sam
 
@@ -98,6 +99,7 @@ class SamPredictor:
         mask_input: Optional[np.ndarray] = None,
         multimask_output: bool = True,
         return_logits: bool = False,
+        as_numpy: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Predict masks for the given input prompts, using the currently set image.
@@ -121,6 +123,8 @@ class SamPredictor:
             input prompts, multimask_output=False can give better results.
           return_logits (bool): If true, returns un-thresholded masks logits
             instead of a binary mask.
+          as_numpy (bool): If true, returns numpy arrays (legacy mode). If false,
+            returns torch tensors for GPU-resident operation.
 
         Returns:
           (np.ndarray): The output masks in CxHxW format, where C is the
@@ -161,10 +165,35 @@ class SamPredictor:
             return_logits=return_logits,
         )
 
-        masks_np = masks[0].detach().cpu().numpy()
-        iou_predictions_np = iou_predictions[0].detach().cpu().numpy()
-        low_res_masks_np = low_res_masks[0].detach().cpu().numpy()
-        return masks_np, iou_predictions_np, low_res_masks_np
+        # Extract tensors from batched results
+        m = masks[0]
+        iou = iou_predictions[0]
+        low = low_res_masks[0]
+
+        # Instrumentation KPI pour diagnostic perf
+        try:
+            from core.monitoring.kpi import safe_log_kpi, format_kpi
+            safe_log_kpi(format_kpi({
+                "ts": time.time(),
+                "event": "sam_predict_output",
+                "as_numpy": int(as_numpy),
+                "mask_device": str(m.device),
+                "iou_device": str(iou.device),
+                "low_device": str(low.device),
+            }))
+        except Exception:
+            pass
+
+        if as_numpy:
+            # ✅ Mode rétrocompatibilité — utilisé uniquement par orchestrator legacy
+            return (
+                m.detach().cpu().numpy(),
+                iou.detach().cpu().numpy(),
+                low.detach().cpu().numpy(),
+            )
+
+        # 🚀 Nouveau mode GPU-resident
+        return (m, iou, low)
 
     @torch.no_grad()
     def predict_torch(
