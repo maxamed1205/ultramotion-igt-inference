@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Transfer Dashboard - Étapes 1 & 2</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-unit {
+            font-size: 0.6em;
+            color: #999;
+            margin-left: 5px;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .chart-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-active {
+            background: #10b981;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            margin-top: 30px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span class="status-indicator status-active"></span>
+            GPU Transfer Dashboard
+        </h1>
+        <div class="subtitle">
+            Monitoring CPU → GPU Transfer Performance (Étapes 1 & 2)
+        </div>
+        
+        <!-- Statistiques temps réel -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Frames</div>
+                <div class="stat-value" id="stat-frames">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value" id="stat-avg-latency">
+                    0.0 <span class="stat-unit">ms</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Min Latency</div>
+                <div class="stat-value" id="stat-min-latency">
+                    0.0 <span class="stat-unit">ms</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Max Latency</div>
+                <div class="stat-value" id="stat-max-latency">
+                    0.0 <span class="stat-unit">ms</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Throughput</div>
+                <div class="stat-value" id="stat-throughput">
+                    0.0 <span class="stat-unit">fps</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Graphique 1: Latence totale par frame -->
+        <div class="chart-container">
+            <div class="chart-title">📊 Latence CPU→GPU (total_ms)</div>
+            <div id="chart-total-latency"></div>
+        </div>
+        
+        <!-- Graphique 2: Décomposition des étapes -->
+        <div class="chart-container">
+            <div class="chart-title">🔍 Décomposition des Étapes (Stacked)</div>
+            <div id="chart-breakdown"></div>
+        </div>
+        
+        <!-- Graphique 3: Moyennes par étape -->
+        <div class="chart-container">
+            <div class="chart-title">⚡ Latences Moyennes par Étape</div>
+            <div id="chart-avg-breakdown"></div>
+        </div>
+        
+        <div class="footer">
+            Auto-refresh toutes les 2 secondes | Source: logs/kpi.log
+        </div>
+    </div>
+    
+    <script>
+        // Configuration Plotly
+        const plotConfig = {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false,
+        };
+        
+        const plotLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Segoe UI, sans-serif' },
+            margin: { t: 40, r: 40, b: 60, l: 60 },
+        };
+        
+        // Fonction pour mettre à jour les métriques
+        async function updateMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                // Mettre à jour les statistiques
+                const stats = data.stats || {};
+                document.getElementById('stat-frames').textContent = stats.total_frames || 0;
+                document.getElementById('stat-avg-latency').innerHTML = 
+                    `${stats.avg_latency || 0.0} <span class="stat-unit">ms</span>`;
+                document.getElementById('stat-min-latency').innerHTML = 
+                    `${stats.min_latency || 0.0} <span class="stat-unit">ms</span>`;
+                document.getElementById('stat-max-latency').innerHTML = 
+                    `${stats.max_latency || 0.0} <span class="stat-unit">ms</span>`;
+                document.getElementById('stat-throughput').innerHTML = 
+                    `${stats.throughput_fps || 0.0} <span class="stat-unit">fps</span>`;
+                
+                // Graphique 1: Latence totale
+                const trace1 = {
+                    x: data.frames,
+                    y: data.total_ms,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Total Latency',
+                    line: { color: '#667eea', width: 2 },
+                    marker: { size: 6 },
+                };
+                
+                const layout1 = {
+                    ...plotLayout,
+                    xaxis: { title: 'Frame ID' },
+                    yaxis: { title: 'Latency (ms)' },
+                    hovermode: 'closest',
+                };
+                
+                Plotly.newPlot('chart-total-latency', [trace1], layout1, plotConfig);
+                
+                // Graphique 2: Décomposition empilée
+                const trace2_norm = {
+                    x: data.frames,
+                    y: data.norm_ms,
+                    type: 'bar',
+                    name: 'Normalisation',
+                    marker: { color: '#10b981' },
+                };
+                
+                const trace2_pin = {
+                    x: data.frames,
+                    y: data.pin_ms,
+                    type: 'bar',
+                    name: 'Pinned Memory',
+                    marker: { color: '#f59e0b' },
+                };
+                
+                const trace2_copy = {
+                    x: data.frames,
+                    y: data.copy_ms,
+                    type: 'bar',
+                    name: 'GPU Copy',
+                    marker: { color: '#ef4444' },
+                };
+                
+                const layout2 = {
+                    ...plotLayout,
+                    barmode: 'stack',
+                    xaxis: { title: 'Frame ID' },
+                    yaxis: { title: 'Latency (ms)' },
+                };
+                
+                Plotly.newPlot('chart-breakdown', [trace2_norm, trace2_pin, trace2_copy], layout2, plotConfig);
+                
+                // Graphique 3: Barres moyennes
+                const trace3 = {
+                    x: ['Normalisation', 'Pinned Memory', 'GPU Copy'],
+                    y: [stats.avg_norm || 0, stats.avg_pin || 0, stats.avg_copy || 0],
+                    type: 'bar',
+                    marker: {
+                        color: ['#10b981', '#f59e0b', '#ef4444'],
+                    },
+                    text: [
+                        `${(stats.avg_norm || 0).toFixed(2)} ms`,
+                        `${(stats.avg_pin || 0).toFixed(2)} ms`,
+                        `${(stats.avg_copy || 0).toFixed(2)} ms`,
+                    ],
+                    textposition: 'auto',
+                };
+                
+                const layout3 = {
+                    ...plotLayout,
+                    xaxis: { title: 'Étape' },
+                    yaxis: { title: 'Latency Moyenne (ms)' },
+                };
+                
+                Plotly.newPlot('chart-avg-breakdown', [trace3], layout3, plotConfig);
+                
+            } catch (error) {
+                console.error('Error fetching metrics:', error);
+            }
+        }
+        
+        // Mise à jour initiale
+        updateMetrics();
+        
+        // Auto-refresh toutes les 2 secondes
+        setInterval(updateMetrics, 2000);
+    </script>
+</body>
+</html>
