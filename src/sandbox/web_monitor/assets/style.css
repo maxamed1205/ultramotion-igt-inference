@@ -715,36 +715,61 @@ body {
 }
 
 .pipeline-summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .summary-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
   background: var(--metric-bg);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
+  min-height: 32px;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
 }
 
 .summary-label {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  margin-right: var(--spacing-xs);
+  max-width: calc(100% - 60px);
 }
 
 .summary-value {
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text-color);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+  min-width: 50px;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .summary-value.highlight {
   color: var(--accent-color);
-  font-size: 1.1rem;
+  font-size: 0.9rem;
 }
 
 /* ==================== GPU METRICS ==================== */
