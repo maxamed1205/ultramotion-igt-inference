@@ -15,7 +15,7 @@ class UltraMotionApp {
         
         // -- WebSocket global ----------------------------------------------------
         this.wsManager = new WebSocketManager({
-            url: 'ws://localhost:8050/ws/v1/pipeline',  // ✅ endpoint correct
+            url: 'ws://localhost:8050/ws',  // ✅ endpoint avec données mockées (FIXED v2)
             reconnectInterval: 5000,
             maxReconnectAttempts: 10
         });

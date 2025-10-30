@@ -310,7 +310,10 @@ class UIManager {
     updateElement(elementId, value) {
         const element = document.getElementById(elementId);
         if (element) {
+            console.log(`🔧 [DEBUG] updateElement: ${elementId} = ${value}`);
             element.textContent = value;
+        } else {
+            console.warn(`⚠️ [DEBUG] Élément non trouvé: ${elementId}`);
         }
     }
 
@@ -369,7 +372,11 @@ class UIManager {
      * Appelée à chaque message `system_metrics` reçu depuis le backend.
      */
     updateSystemMetrics(data) {
-        if (!data) return;
+        console.log('🎨 [DEBUG] updateSystemMetrics appelée avec:', data);
+        if (!data) {
+            console.log('⚠️ [DEBUG] Données vides dans updateSystemMetrics');
+            return;
+        }
 
         // ===========================
         //  🧩 GPU - Utilisation
@@ -440,45 +447,55 @@ class UIManager {
         //  🔄 Latences Inter-étapes (Pipeline GPU-Résident)
         // ===========================
         if (data.interstage) {
+            console.log('🔧 [DEBUG] Traitement des données interstage:', data.interstage);
             const interstage = data.interstage;
             
             // RX → CPU
             if (interstage.rx_cpu !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour lat-rx-cpu: ${interstage.rx_cpu.toFixed(1)} ms`);
                 this.updateElement('lat-rx-cpu', `${interstage.rx_cpu.toFixed(1)} ms`);
             }
             
             // CPU → GPU
             if (interstage.cpu_gpu !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour lat-cpu-gpu: ${interstage.cpu_gpu.toFixed(1)} ms`);
                 this.updateElement('lat-cpu-gpu', `${interstage.cpu_gpu.toFixed(1)} ms`);
             }
             
             // PROC(GPU)
             if (interstage.proc_gpu !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour lat-proc-gpu: ${interstage.proc_gpu.toFixed(1)} ms`);
                 this.updateElement('lat-proc-gpu', `${interstage.proc_gpu.toFixed(1)} ms`);
             }
             
             // GPU → CPU
             if (interstage.gpu_cpu !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour lat-gpu-cpu: ${interstage.gpu_cpu.toFixed(1)} ms`);
                 this.updateElement('lat-gpu-cpu', `${interstage.gpu_cpu.toFixed(1)} ms`);
             }
             
             // CPU → TX
             if (interstage.cpu_tx !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour lat-cpu-tx: ${interstage.cpu_tx.toFixed(1)} ms`);
                 this.updateElement('lat-cpu-tx', `${interstage.cpu_tx.toFixed(1)} ms`);
             }
             
             // Total RX→TX
             if (interstage.total !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour interstage-total: ${interstage.total.toFixed(1)} ms`);
                 this.updateElement('interstage-total', `${interstage.total.toFixed(1)} ms`);
             }
             
             // Frame number
             if (interstage.frame_id !== undefined) {
+                console.log(`🔧 [DEBUG] Mise à jour interstage-frame-id: ${interstage.frame_id}`);
                 this.updateElement('interstage-frame-id', interstage.frame_id);
             }
 
             // Mise à jour de la barre de latence colorée
             this.updateLatencyBar(interstage);
+        } else {
+            console.log('⚠️ [DEBUG] Aucune données interstage trouvées dans:', data);
         }
 
         // ===========================

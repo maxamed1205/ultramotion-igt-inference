@@ -69,11 +69,14 @@ connect() {
         try {
             const data = JSON.parse(event.data);
             console.log('📨 Message WebSocket reçu:', data.type || 'unknown');
+            console.log('🔍 [DEBUG] Données complètes reçues:', data);
             
             // Émission de l'événement selon le type de message
             if (data.type) {
+                console.log(`🚀 [DEBUG] Émission événement '${data.type}' avec données:`, data.data || data);
                 this.emit(data.type, data.data || data);
             } else {
+                console.log('🚀 [DEBUG] Émission événement "message" avec données:', data);
                 this.emit('message', data);
             }
             

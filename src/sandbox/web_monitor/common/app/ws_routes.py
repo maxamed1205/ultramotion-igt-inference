@@ -58,7 +58,9 @@ def register_ws_routes(app):
             while websocket in connected_clients:
                 # Envoie des données mockées
                 data = _mock_metrics()
-                await websocket.send_text(json.dumps({"type": "system_metrics", "data": data}))
+                message = {"type": "system_metrics", "data": data}
+                log.info(f"[WS] [DEBUG] Envoi des données: {message}")
+                await websocket.send_text(json.dumps(message))
                 await asyncio.sleep(1.0)
 
         except WebSocketDisconnect:
@@ -111,28 +113,43 @@ def register_ws_routes(app):
     @app.websocket("/ws/v1/pipeline")
     async def ws_pipeline(websocket: WebSocket):
         """
-        Diffusion en temps réel des frames agrégées du LogCollector.
+        TEMPORAIRE : Envoie des données mockées au lieu du LogCollector
+        pour permettre au dashboard de fonctionner pendant le développement.
         """
-        log.info("[WS] WebSocket /ws/v1/pipeline : connexion ouverte")
-        await websocket.accept()
+        log.info("[WS] WebSocket /ws/v1/pipeline : connexion ouverte (mode mockées)")
+        
+        cfg = app.state.cfg
+        security = cfg.get("dashboard", {}).get("security", {})
+        enabled = security.get("enabled", False)
+        expected = security.get("token")
 
-        # On récupère l'instance du collector via app.state
-        collector = getattr(app.state, "collector", None)
-        if collector is None:
-            log.error("[WS] Aucun collector attaché à app.state.collector")
-            await websocket.send_json({"error": "collector_not_initialized"})
-            await websocket.close()
+        token = websocket.query_params.get("token")
+
+        # Sécurité optionnelle
+        if enabled and token != expected:
+            log.warning("[WS] Token invalide, fermeture de la connexion.")
+            await websocket.close(code=4003)
             return
 
+        await websocket.accept()
+        connected_clients.add(websocket)
+        log.info(f"[WS] Client connecté via /ws/v1/pipeline ({len(connected_clients)} total)")
+
         try:
-            while True:
-                # On récupère un snapshot complet à envoyer au dashboard
-                snap = collector.snapshot()
-                await websocket.send_text(json.dumps(snap.to_dict()))
-                await asyncio.sleep(0.5)
+            while websocket in connected_clients:
+                # Envoie des données mockées avec le bon format
+                data = _mock_metrics()
+                message = {"type": "system_metrics", "data": data}
+                log.info(f"[WS] [DEBUG] Envoi des données mockées via /ws/v1/pipeline: {message}")
+                await websocket.send_text(json.dumps(message))
+                await asyncio.sleep(1.0)
+
         except WebSocketDisconnect:
             log.info("[WS] Client pipeline déconnecté")
+        except Exception as e:
+            log.error(f"[WS] Erreur WebSocket : {e}")
         finally:
+            connected_clients.discard(websocket)
             await websocket.close()
 
 
@@ -152,7 +169,7 @@ def _mock_metrics():
     cpu_tx = round(random.uniform(0.5, 1.0), 2)
     total = round(rx_cpu + cpu_gpu + proc_gpu + gpu_cpu + cpu_tx, 2)
     
-    return {
+    result = {
         "gpu": {"usage": 65.5, "vram_used": 1500, "temp": 56.1, "streams": 4},
         "cpu": {"usage": 30.2, "threads": 22},
         "fps": {"rx": 25.0, "proc": 24.7, "tx": 24.9},
@@ -168,3 +185,6 @@ def _mock_metrics():
             "total": total
         }
     }
+    
+    log.info(f"[WS] [DEBUG] Données mockées générées: {result}")
+    return result
