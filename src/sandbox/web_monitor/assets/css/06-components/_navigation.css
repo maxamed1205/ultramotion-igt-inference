@@ -1,0 +1,89 @@
+/* ==========================================================
+   _navigation.css — Navigation principale
+   ========================================================== */
+
+.c-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-xl);
+  z-index: var(--z-nav);
+  box-shadow: var(--shadow-sm);
+}
+
+.c-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.c-nav__logo {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--accent-color), var(--secondary-color));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.c-nav__title {
+  font-size: 1.75rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--accent-color);
+  line-height: var(--line-height-tight);
+}
+
+.c-nav__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.c-nav__status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.c-nav__connection {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--card-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.c-nav__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.c-nav__status-dot--connected {
+  background: var(--success-color);
+}
+
+.c-nav__timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  background: var(--card-bg);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}

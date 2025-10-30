@@ -1,0 +1,42 @@
+/* ==========================================================
+   main.css — Point d'entrée principal CSS
+   UltraMotion IGT Professional Dashboard
+   Hôpitaux Universitaires de Genève (HUG)
+   ========================================================== */
+
+/* 01 - Settings: Variables globales et configuration */
+@import url('01-settings/_variables.css');
+@import url('01-settings/_colors.css');
+@import url('01-settings/_spacing.css');
+@import url('01-settings/_typography.css');
+@import url('01-settings/_transitions.css');
+
+/* 02 - Tools: Mixins et fonctions utilitaires */
+/* @import url('02-tools/_mixins.css'); */
+
+/* 03 - Generic: Reset et normalisation */
+@import url('03-generic/_reset.css');
+
+/* 04 - Elements: Styles pour éléments HTML nus */
+/* @import url('04-elements/_typography.css'); */
+
+/* 05 - Objects: Patterns de layout réutilisables */
+@import url('05-objects/_layout.css');
+@import url('05-objects/_grid.css');
+
+/* 06 - Components: Composants UI spécifiques */
+@import url('06-components/_navigation.css');
+@import url('06-components/_cards.css');
+@import url('06-components/_buttons.css');
+@import url('06-components/_header.css');
+@import url('06-components/_pipeline.css');
+@import url('06-components/_gpu-metrics.css');
+@import url('06-components/_queues.css');
+@import url('06-components/_footer.css');
+
+/* 07 - Trumps: Utilitaires et overrides */
+@import url('07-trumps/_animations.css');
+@import url('07-trumps/_responsive.css');
+@import url('07-trumps/_legacy-compatibility.css');
+
+/* Migration complète terminée - Prêt pour les tests ! */

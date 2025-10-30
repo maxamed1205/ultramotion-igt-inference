@@ -1,40 +1,40 @@
 <!-- GPU Card Component -->
-<div class="card card-secondary">
-    <div class="card-header">
-        <h3><i class="fas fa-microchip"></i> Performance GPU</h3>
-        <div class="card-subtitle">Métriques de traitement</div>
+<div class="c-card c-card--secondary">
+    <div class="c-card__header">
+        <h3 class="c-card__title"><i class="fas fa-microchip"></i> Performance GPU</h3>
+        <div class="c-card__subtitle">Métriques de traitement</div>
     </div>
-    <div class="card-content">
-        <div class="gpu-metrics">
-            <div class="gpu-metric-row">
-                <div class="metric-card">
-                    <div class="metric-icon"><i class="fas fa-images"></i></div>
-                    <div class="metric-info">
-                        <span class="metric-label">Frames</span>
-                        <span id="gpu-frames" class="metric-value">0</span>
+    <div class="c-card__content">
+        <div class="c-gpu-metrics">
+            <div class="c-gpu-metrics__row">
+                <div class="c-metric-card">
+                    <div class="c-metric-card__icon"><i class="fas fa-images"></i></div>
+                    <div class="c-metric-card__info">
+                        <span class="c-metric-card__label">Frames</span>
+                        <span id="gpu-frames" class="c-metric-card__value">0</span>
                     </div>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-icon"><i class="fas fa-clock"></i></div>
-                    <div class="metric-info">
-                        <span class="metric-label">Latence moy.</span>
-                        <span id="gpu-avg-lat" class="metric-value">0.0 ms</span>
+                <div class="c-metric-card">
+                    <div class="c-metric-card__icon"><i class="fas fa-clock"></i></div>
+                    <div class="c-metric-card__info">
+                        <span class="c-metric-card__label">Latence moy.</span>
+                        <span id="gpu-avg-lat" class="c-metric-card__value">0.0 ms</span>
                     </div>
                 </div>
             </div>
-            <div class="gpu-metric-row">
-                <div class="metric-card">
-                    <div class="metric-icon"><i class="fas fa-tachometer-alt"></i></div>
-                    <div class="metric-info">
-                        <span class="metric-label">Throughput</span>
-                        <span id="gpu-throughput" class="metric-value">0.0 FPS</span>
+            <div class="c-gpu-metrics__row">
+                <div class="c-metric-card">
+                    <div class="c-metric-card__icon"><i class="fas fa-tachometer-alt"></i></div>
+                    <div class="c-metric-card__info">
+                        <span class="c-metric-card__label">Throughput</span>
+                        <span id="gpu-throughput" class="c-metric-card__value">0.0 FPS</span>
                     </div>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-icon"><i class="fas fa-layer-group"></i></div>
-                    <div class="metric-info">
-                        <span class="metric-label">Norm/Pin/Copy</span>
-                        <span id="gpu-breakdown" class="metric-value">0/0/0</span>
+                <div class="c-metric-card">
+                    <div class="c-metric-card__icon"><i class="fas fa-layer-group"></i></div>
+                    <div class="c-metric-card__info">
+                        <span class="c-metric-card__label">Norm/Pin/Copy</span>
+                        <span id="gpu-breakdown" class="c-metric-card__value">0/0/0</span>
                     </div>
                 </div>
             </div>

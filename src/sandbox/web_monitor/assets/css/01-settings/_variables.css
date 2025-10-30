@@ -1,0 +1,15 @@
+/* ==========================================================
+   _variables.css — Variables globales UltraMotion IGT
+   ========================================================== */
+
+:root {
+  /* Layout */
+  --sidebar-width: 320px;
+  --nav-height: 70px;
+  --max-width: 1600px;
+  
+  /* Z-index */
+  --z-nav: 1000;
+  --z-sidebar: 900;
+  --z-modal: 2000;
+}

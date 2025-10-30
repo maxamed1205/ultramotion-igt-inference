@@ -1,0 +1,38 @@
+/* ==========================================================
+   _content-header.css — En-tête de contenu
+   ========================================================== */
+
+.c-content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-2xl);
+  margin-bottom: var(--spacing-2xl);
+}
+
+.c-content-header__title {
+  font-size: 2rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.c-content-header__actions {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .c-content-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+  
+  .c-content-header__title {
+    font-size: 1.5rem;
+  }
+}

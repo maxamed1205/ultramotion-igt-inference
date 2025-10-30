@@ -1,0 +1,154 @@
+/* ==========================================================
+   _legacy-compatibility.css — Compatibilité avec l'ancien système
+   ========================================================== */
+
+/* Rétrocompatibilité : Anciens noms = Nouveaux styles */
+
+/* Navigation aliases */
+.top-nav { 
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-xl);
+  z-index: var(--z-nav);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.brand-logo {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--accent-color), var(--secondary-color));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.brand-text h1 {
+  font-size: 1.75rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--accent-color);
+  line-height: var(--line-height-tight);
+}
+
+.brand-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.nav-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.connection-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--card-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-connected {
+  background: var(--success-color);
+}
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  background: var(--card-bg);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+/* Layout aliases */
+.main-container {
+  margin-top: var(--nav-height);
+  display: flex;
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.main-content {
+  flex: 1;
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  max-width: calc(100vw - var(--sidebar-width));
+  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  contain: layout;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  z-index: var(--z-sidebar);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto;
+  gap: var(--spacing-xl);
+  max-width: var(--max-width);
+  width: 100%;
+  margin: 0 auto;
+  grid-template-areas: 
+    "pipeline performance utilization"
+    "reference trends queues";
+  position: relative;
+  contain: layout;
+  overflow: hidden;
+}
+
+.metrics-grid > * {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* Grid areas aliases */
+.card-primary { grid-area: pipeline; }
+.card-secondary { grid-area: performance; }
+.card-accent { grid-area: utilization; }
+.card-info, .card-warning { grid-area: reference; }
+.card-success { grid-area: trends; }
+.card-danger { grid-area: queues; }
+
+/* Note: Les autres composants (cards, pipeline, etc.) gardent leurs noms originaux 
+   car ils fonctionnent déjà avec la nouvelle architecture */

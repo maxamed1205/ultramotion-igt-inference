@@ -1,0 +1,134 @@
+/* ==========================================================
+   _cards.css — Système de cartes réutilisables
+   ========================================================== */
+
+.c-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-smooth);
+  position: relative;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  contain: layout style paint;
+}
+
+.c-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.c-card > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.c-card__header {
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-header-bg);
+  flex-shrink: 0;
+}
+
+.c-card__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-color);
+  margin-bottom: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.c-card__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.c-card__content {
+  padding: var(--spacing-lg);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* Variantes de cartes */
+.c-card--primary {
+  border-color: var(--primary-border);
+  min-height: 320px;
+  contain: layout style paint;
+}
+
+.c-card--primary .c-card__header {
+  background: var(--primary-bg);
+}
+
+.c-card--secondary {
+  border-color: var(--secondary-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--secondary .c-card__header {
+  background: var(--secondary-bg);
+}
+
+.c-card--accent {
+  border-color: var(--accent-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--accent .c-card__header {
+  background: var(--accent-bg);
+}
+
+.c-card--warning {
+  border-color: var(--warning-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--warning .c-card__header {
+  background: var(--warning-bg);
+}
+
+.c-card--info {
+  border-color: var(--info-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--info .c-card__header {
+  background: var(--info-bg);
+}
+
+.c-card--success {
+  border-color: var(--success-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--success .c-card__header {
+  background: var(--success-bg);
+}
+
+.c-card--danger {
+  border-color: var(--danger-border);
+  min-height: 280px;
+  contain: layout style paint;
+}
+
+.c-card--danger .c-card__header {
+  background: var(--danger-bg);
+}

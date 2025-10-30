@@ -1,0 +1,84 @@
+/* ==========================================================
+   _colors.css — Couleurs et thème sombre
+   ========================================================== */
+
+:root {
+  /* ==================== COULEURS DE BASE ==================== */
+  
+  /* Arrière-plans principaux */
+  --bg-color: #0a0e1a;              /* Fond principal très sombre */
+  --sidebar-bg: #0f1419;            /* Sidebar légèrement plus claire */
+  --nav-bg: rgba(15, 20, 25, 0.95); /* Navigation semi-transparente */
+  --card-bg: #161b22;               /* Cartes principales */
+  --card-header-bg: #1c2128;        /* En-têtes de cartes */
+  --metric-bg: #0d1117;             /* Métriques et indicateurs */
+  --metric-hover-bg: #161b22;       /* Hover des métriques */
+  
+  /* ==================== COULEURS FONCTIONNELLES ==================== */
+  
+  /* Texte */
+  --text-color: #e6edf3;            /* Texte principal */
+  --text-muted: #8b949e;            /* Texte secondaire */
+  --text-subtle: #656d76;           /* Texte très discret */
+  
+  /* Bordures */
+  --border-color: #30363d;          /* Bordures principales */
+  --border-subtle: #21262d;         /* Bordures discrètes */
+  
+  /* ==================== COULEURS D'ACCENT ==================== */
+  
+  /* Accent principal - Bleu médical */
+  --accent-color: #4fc3f7;          /* Bleu cyan professionnel */
+  --accent-bg: rgba(79, 195, 247, 0.1);
+  --accent-border: rgba(79, 195, 247, 0.3);
+  
+  /* Couleurs secondaires */
+  --secondary-color: #7c3aed;       /* Violet technologique */
+  --secondary-bg: rgba(124, 58, 237, 0.1);
+  --secondary-border: rgba(124, 58, 237, 0.3);
+  
+  /* Couleurs de performance */
+  --primary-color: #0ea5e9;         /* Bleu performance */
+  --primary-bg: rgba(14, 165, 233, 0.1);
+  --primary-border: rgba(14, 165, 233, 0.3);
+  
+  /* ==================== COULEURS D'ÉTAT ==================== */
+  
+  /* Succès / Vert */
+  --success-color: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.1);
+  --success-border: rgba(34, 197, 94, 0.3);
+  
+  /* Avertissement / Orange */
+  --warning-color: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --warning-border: rgba(245, 158, 11, 0.3);
+  
+  /* Erreur / Rouge */
+  --danger-color: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+  --danger-border: rgba(239, 68, 68, 0.3);
+  
+  /* Information / Bleu clair */
+  --info-color: #06b6d4;
+  --info-bg: rgba(6, 182, 212, 0.1);
+  --info-border: rgba(6, 182, 212, 0.3);
+  
+  /* ==================== COULEURS D'ICÔNES ==================== */
+  
+  --icon-bg: rgba(255, 255, 255, 0.05);
+  --icon-color: var(--text-muted);
+  
+  /* ==================== COULEURS SPÉCIFIQUES GPU ==================== */
+  
+  --gpu-utilization-high: #ef4444;    /* Rouge pour usage élevé */
+  --gpu-utilization-medium: #f59e0b;  /* Orange pour usage moyen */
+  --gpu-utilization-low: #22c55e;     /* Vert pour usage faible */
+  
+  /* ==================== COULEURS PIPELINE ==================== */
+  
+  --pipeline-rx-gpu: #22c55e;         /* Vert - RX→GPU */
+  --pipeline-gpu-proc: #3b82f6;       /* Bleu - GPU→PROC */
+  --pipeline-proc-cpu: #eab308;       /* Jaune - PROC→CPU */
+  --pipeline-cpu-tx: #a855f7;         /* Violet - CPU→TX */
+}

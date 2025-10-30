@@ -1,0 +1,35 @@
+/* ==========================================================
+   _layout.css — Système de layout principal
+   ========================================================== */
+
+/* Layout principal */
+.o-main-container {
+  margin-top: var(--nav-height);
+  display: flex;
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.o-main-content {
+  flex: 1;
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  max-width: calc(100vw - var(--sidebar-width));
+  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  contain: layout;
+}
+
+.o-main-content > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.o-sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  z-index: var(--z-sidebar);
+}

@@ -1,0 +1,43 @@
+/* ==========================================================
+   _footer.css — Composant Footer
+   ========================================================== */
+
+.c-footer {
+  margin-top: var(--spacing-2xl);
+  padding: var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.c-footer__content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.c-footer__left,
+.c-footer__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.c-footer__brand {
+  font-weight: var(--font-weight-semibold);
+  color: var(--accent-color);
+}
+
+.c-footer__separator {
+  color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .c-footer__content {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+}

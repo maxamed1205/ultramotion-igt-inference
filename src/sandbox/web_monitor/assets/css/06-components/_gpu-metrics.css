@@ -1,0 +1,198 @@
+/* ==========================================================
+   _gpu-metrics.css — Composants GPU Metrics
+   ========================================================== */
+
+.c-gpu-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.c-gpu-metrics__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.c-metric-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--metric-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+
+.c-metric-card:hover {
+  background: var(--metric-hover-bg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.c-metric-card__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--icon-bg);
+  color: var(--icon-color);
+}
+
+.c-metric-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c-metric-card__label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.c-metric-card__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-family: var(--font-mono);
+}
+
+/* GPU Hardware Overview */
+.c-gpu-hardware-overview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--spacing-xl);
+  align-items: center;
+}
+
+.c-gpu-util-circle-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.c-gpu-util-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.c-gpu-util-bg {
+  fill: none;
+  stroke: var(--border-color);
+  stroke-width: 2;
+}
+
+.c-gpu-util-fg {
+  fill: none;
+  stroke: var(--accent-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--transition-smooth);
+}
+
+.c-gpu-util-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.c-gpu-util-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.c-gpu-util-symbol {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.c-gpu-hardware-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.c-hw-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--metric-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.c-hw-metric__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.c-hw-metric__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+/* GPU Details (legacy support) */
+.c-gpu-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.c-gpu-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--metric-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.c-gpu-detail__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.c-gpu-detail__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .c-gpu-hardware-overview {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+    text-align: center;
+  }
+  
+  .c-gpu-util-circle-container {
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .c-gpu-metrics__row {
+    grid-template-columns: 1fr;
+  }
+}

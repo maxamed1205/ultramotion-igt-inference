@@ -1,0 +1,107 @@
+/* ==========================================================
+   _responsive.css — Media queries et responsive
+   ========================================================== */
+
+/* Très grands écrans (1800px+) */
+@media (min-width: 1800px) {
+  :root {
+    --max-width: 2000px;
+    --sidebar-width: 350px;
+  }
+  
+  .o-main-content {
+    padding: var(--spacing-2xl) var(--spacing-2xl);
+  }
+  
+  .o-metrics-grid {
+    gap: var(--spacing-2xl);
+    max-width: 1800px;
+  }
+  
+  .c-card--primary {
+    min-height: 360px;
+  }
+}
+
+/* Grands écrans (1400px-1799px) */
+@media (min-width: 1400px) and (max-width: 1799px) {
+  .o-metrics-grid {
+    gap: var(--spacing-2xl);
+    max-width: 1600px;
+  }
+  
+  .c-card--primary {
+    min-height: 340px;
+  }
+}
+
+/* Écrans moyens-larges (1000px-1399px) - 2 colonnes */
+@media (min-width: 1000px) and (max-width: 1399px) {
+  .o-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-areas: 
+      "pipeline performance"
+      "utilization reference"
+      "trends queues";
+    gap: var(--spacing-lg);
+  }
+}
+
+/* Tablettes et écrans moyens (768px-1199px) */
+@media (max-width: 1200px) {
+  .o-main-container {
+    flex-direction: column;
+  }
+  
+  .o-sidebar {
+    width: 100%;
+    position: relative;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-lg);
+  }
+  
+  .o-main-content {
+    max-width: 100%;
+    padding: var(--spacing-lg);
+  }
+  
+  .o-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--spacing-lg);
+  }
+}
+
+/* Tablettes (768px-1199px) */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .o-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-lg);
+  }
+}
+
+/* Mobiles (max-width: 768px) */
+@media (max-width: 768px) {
+  .c-nav {
+    padding: 0 var(--spacing-md);
+  }
+  
+  .c-nav__title {
+    font-size: 1.5rem;
+  }
+  
+  .c-nav__status {
+    gap: var(--spacing-md);
+  }
+  
+  .o-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Petits mobiles (max-width: 480px) */
+@media (max-width: 480px) {
+  .o-main-content, .o-sidebar {
+    padding: var(--spacing-md);
+  }
+}
