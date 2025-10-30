@@ -21,9 +21,6 @@
     <!-- NEW: Architecture CSS moderne (Test) -->
     <link rel="stylesheet" href="{{ url_for('assets', path='css/main.css') }}">
     
-    <!-- LEGACY: Ancienne architecture (Temporaire) -->
-    <link rel="stylesheet" href="{{ url_for('assets', path='theme_dark.css') }}">
-    
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -38,6 +35,19 @@
                 <span class="brand-subtitle">Hôpitaux Universitaires de Genève</span>
             </div>
         </div>
+        
+        <!-- Navigation entre pages -->
+        <div class="nav-menu">
+            <a href="/dashboard" class="nav-link" title="Tableau de bord principal">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/analyse-pipeline" class="nav-link" title="Analyse pipeline GPU/CPU">
+                <i class="fas fa-project-diagram"></i>
+                <span>Analyse Pipeline</span>
+            </a>
+        </div>
+
         <div class="nav-status">
             <div class="connection-indicator">
                 <div id="connection-status" class="status-dot status-connected"></div>
@@ -69,6 +79,23 @@
     <script src="/javascript/ui_manager.js"></script>
     <script src="/javascript/time_manager.js"></script>
     <script src="/javascript/main.js"></script>
+    
+    <!-- Navigation active script -->
+    <script>
+        // Marque le lien de navigation actuel
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        });
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

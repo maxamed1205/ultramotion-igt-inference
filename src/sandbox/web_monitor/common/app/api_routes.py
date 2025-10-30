@@ -90,5 +90,15 @@ def register_api_routes(app):
             }
         )
 
+    # 🎯 Nouvelle page Analyse Pipeline 
+    @app.get("/analyse-pipeline", response_class=HTMLResponse)
+    async def analyse_pipeline(request: Request):
+        return templates.TemplateResponse(
+            "analyse_pipeline.html",
+            {
+                "request": request,
+                "title": "Analyse Pipeline | UltraMotion IGT"
+            }
+        )
 
     # Note: Les fichiers statiques sont maintenant montés dans app_factory.py

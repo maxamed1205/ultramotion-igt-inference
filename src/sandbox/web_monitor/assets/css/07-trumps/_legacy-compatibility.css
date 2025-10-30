@@ -91,6 +91,46 @@
   border: 1px solid var(--border-color);
 }
 
+/* Navigation Menu Links */
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-smooth);
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  color: var(--accent-color);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+.nav-link:active,
+.nav-link.active {
+  color: var(--accent-color);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-link i {
+  font-size: 1rem;
+}
+
 /* Layout aliases */
 .main-container {
   margin-top: var(--nav-height);

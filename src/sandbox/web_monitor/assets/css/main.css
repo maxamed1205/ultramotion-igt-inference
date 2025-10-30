@@ -33,6 +33,7 @@
 @import url('06-components/_gpu-metrics.css');
 @import url('06-components/_queues.css');
 @import url('06-components/_footer.css');
+@import url('06-components/analyse_pipeline.css');
 
 /* 07 - Trumps: Utilitaires et overrides */
 @import url('07-trumps/_animations.css');

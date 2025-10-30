@@ -2,51 +2,106 @@
 <div class="c-card c-card--primary">
     <div class="c-card__header">
         <h3 class="c-card__title"><i class="fas fa-route"></i> GPU-Résident — Latence totale</h3>
-        <div class="c-card__subtitle">Répartition proportionnelle des latences</div>
+        <div class="c-card__subtitle">Répartition proportionnelle des latences (dernière frame)</div>
     </div>
+
     <div class="c-card__content">
-        <!-- Barre de progression colorée -->
+
+        <!-- Barre de progression empilée -->
         <div class="c-latency-bar-container">
+
+            <!-- Légende des segments -->
             <div class="c-latency-bar__labels">
-                <span>RX→GPU</span>
-                <span>GPU→PROC</span>
-                <span>PROC→CPU</span>
+                <span>RX→CPU</span>
+                <span>CPU→GPU</span>
+                <span>PROC(GPU)</span>
+                <span>GPU→CPU</span>
                 <span>CPU→TX</span>
             </div>
+
+            <!-- Barre empilée dynamique -->
             <div class="c-latency-bar" id="latency-bar">
-                <div class="c-latency-bar__segment c-latency-bar__segment--rx-gpu" id="segment-rx-gpu" style="width: 12%" title="RX→GPU"></div>
-                <div class="c-latency-bar__segment c-latency-bar__segment--gpu-proc" id="segment-gpu-proc" style="width: 45%" title="GPU→PROC"></div>
-                <div class="c-latency-bar__segment c-latency-bar__segment--proc-cpu" id="segment-proc-cpu" style="width: 32%" title="PROC→CPU"></div>
-                <div class="c-latency-bar__segment c-latency-bar__segment--cpu-tx" id="segment-cpu-tx" style="width: 11%" title="CPU→TX"></div>
+                <!-- Chaque segment : largeur (%) remplie en JS -->
+                <div
+                    class="c-latency-bar__segment c-latency-bar__segment--rx-cpu"
+                    id="segment-rx-cpu"
+                    style="width: 0%"
+                    title="RX→CPU">
+                </div>
+
+                <div
+                    class="c-latency-bar__segment c-latency-bar__segment--cpu-gpu"
+                    id="segment-cpu-gpu"
+                    style="width: 0%"
+                    title="CPU→GPU">
+                </div>
+
+                <div
+                    class="c-latency-bar__segment c-latency-bar__segment--proc-gpu"
+                    id="segment-proc-gpu"
+                    style="width: 0%"
+                    title="PROC(GPU)">
+                </div>
+
+                <div
+                    class="c-latency-bar__segment c-latency-bar__segment--gpu-cpu"
+                    id="segment-gpu-cpu"
+                    style="width: 0%"
+                    title="GPU→CPU">
+                </div>
+
+                <div
+                    class="c-latency-bar__segment c-latency-bar__segment--cpu-tx"
+                    id="segment-cpu-tx"
+                    style="width: 0%"
+                    title="CPU→TX">
+                </div>
             </div>
         </div>
-        
+
         <!-- Résumé compact -->
         <div class="c-pipeline-summary">
             <div class="c-pipeline-summary__item">
-                <span>Total RX→TX : </span>
-                <span class="c-pipeline-summary__value c-pipeline-summary__value--highlight" id="interstage-total">0.0 ms</span>
-                <span class="c-pipeline-summary__label">(Frame : <span id="interstage-samples">0</span>)</span>
+                <span>Total RX→TX :</span>
+                <span
+                    class="c-pipeline-summary__value c-pipeline-summary__value--highlight"
+                    id="interstage-total">
+                    --
+                </span>
+                <span class="c-pipeline-summary__label">
+                    (Frame :
+                    <span id="interstage-frame-id">-</span>
+                    )
+                </span>
             </div>
         </div>
-        
-        <!-- Valeurs détaillées avec couleurs -->
+
+        <!-- Valeurs brutes ms (dernière frame) -->
         <div class="c-latency-details">
+
             <div class="c-latency-details__item">
-                <span class="c-latency-details__label">RX→GPU</span>
-                <span class="c-latency-details__value" id="interstage-rx-gpu">0.0 ms</span>
+                <span class="c-latency-details__label">RX→CPU</span>
+                <span class="c-latency-details__value" id="lat-rx-cpu">-- ms</span>
             </div>
+
             <div class="c-latency-details__item">
-                <span class="c-latency-details__label">GPU→PROC</span>
-                <span class="c-latency-details__value" id="interstage-gpu-proc">0.0 ms</span>
+                <span class="c-latency-details__label">CPU→GPU</span>
+                <span class="c-latency-details__value" id="lat-cpu-gpu">-- ms</span>
             </div>
+
             <div class="c-latency-details__item">
-                <span class="c-latency-details__label">PROC→CPU</span>
-                <span class="c-latency-details__value" id="interstage-proc-cpu">0.0 ms</span>
+                <span class="c-latency-details__label">PROC(GPU)</span>
+                <span class="c-latency-details__value" id="lat-proc-gpu">-- ms</span>
             </div>
+
+            <div class="c-latency-details__item">
+                <span class="c-latency-details__label">GPU→CPU</span>
+                <span class="c-latency-details__value" id="lat-gpu-cpu">-- ms</span>
+            </div>
+
             <div class="c-latency-details__item">
                 <span class="c-latency-details__label">CPU→TX</span>
-                <span class="c-latency-details__value" id="interstage-cpu-tx">0.0 ms</span>
+                <span class="c-latency-details__value" id="lat-cpu-tx">-- ms</span>
             </div>
         </div>
     </div>

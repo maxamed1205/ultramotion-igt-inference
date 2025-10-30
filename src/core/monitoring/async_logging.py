@@ -18,7 +18,7 @@ if os.name == "nt":
                 handler.setStream(sys.stdout)
             except Exception:
                 pass
-        print(f"[UTF8] Active encoding={sys.stdout.encoding}, locale={locale.getpreferredencoding(False)}")
+        # print(f"[UTF8] Active encoding={sys.stdout.encoding}, locale={locale.getpreferredencoding(False)}")
     except Exception as e:
         print(f"[UTF8] Patch failed: {e}")
 

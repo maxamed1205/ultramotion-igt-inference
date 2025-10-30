@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
+from flask import app
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from pathlib import Path
 import logging
@@ -74,7 +75,7 @@ def create_app(cfg):
     # Montage statique - chemin mis à jour pour être relatif au working directory
     base_dir = Path(__file__).resolve().parents[2]
     assets_path = base_dir / "assets"
-    javascript_path = base_dir / "javascript"
+    javascript_path = assets_path / "javascript"
     
     app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
     app.mount("/javascript", StaticFiles(directory=str(javascript_path)), name="javascript")

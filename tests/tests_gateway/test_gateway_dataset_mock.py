@@ -50,11 +50,6 @@ os.system("chcp 65001 >NUL")
 
 # Force Python's stdout/stderr to UTF-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
-# Confirm current locale (for debug)
-print(f"[DEBUG] Console encoding: {sys.stdout.encoding}, locale: {locale.getpreferredencoding(False)}")
-
 
 # ──────────────────────────────────────────────
 #  Préparation du contexte
@@ -282,7 +277,7 @@ def simulate_processing(
     gateway: IGTGateway,
     stop_event: threading.Event,
     frame_ready: threading.Event,
-    use_gpu: bool = False,
+    use_gpu: bool = True,
     gpu_device: str = "cpu"
 ):
     """Lit la mailbox, applique un seuillage (optionnellement sur GPU), envoie vers outbox via send_mask()."""
