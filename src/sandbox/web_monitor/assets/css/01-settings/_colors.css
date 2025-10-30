@@ -77,8 +77,9 @@
   
   /* ==================== COULEURS PIPELINE ==================== */
   
-  --pipeline-rx-gpu: #22c55e;         /* Vert - RX→GPU */
-  --pipeline-gpu-proc: #3b82f6;       /* Bleu - GPU→PROC */
-  --pipeline-proc-cpu: #eab308;       /* Jaune - PROC→CPU */
+  --pipeline-rx-cpu: #22c55e;         /* Vert - RX→CPU */
+  --pipeline-cpu-gpu: #3b82f6;        /* Bleu - CPU→GPU */
+  --pipeline-proc-gpu: #eab308;       /* Jaune - PROC(GPU) */
+  --pipeline-gpu-cpu: #ef4444;        /* Rouge - GPU→CPU */
   --pipeline-cpu-tx: #a855f7;         /* Violet - CPU→TX */
 }

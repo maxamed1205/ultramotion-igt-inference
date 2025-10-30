@@ -143,6 +143,8 @@
   transition: all var(--transition-smooth);
   position: relative;
   min-width: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.3); /* DEBUG: bordures pour voir les segments */
+  box-sizing: border-box;
 }
 
 .c-latency-bar__segment:hover {
@@ -150,20 +152,29 @@
   transform: scaleY(1.1);
 }
 
-.c-latency-bar__segment--rx-gpu {
-  background: linear-gradient(135deg, var(--pipeline-rx-gpu), #16a34a);
+.c-latency-bar__segment--rx-cpu {
+  background: #22c55e !important; /* Force la couleur verte */
+  background-color: #22c55e !important; /* DEBUG: couleur de secours */
 }
 
-.c-latency-bar__segment--gpu-proc {
-  background: linear-gradient(135deg, var(--pipeline-gpu-proc), #1d4ed8);
+.c-latency-bar__segment--cpu-gpu {
+  background: #3b82f6 !important; /* Force la couleur bleue */
+  background-color: #3b82f6 !important; /* DEBUG: couleur de secours */
 }
 
-.c-latency-bar__segment--proc-cpu {
-  background: linear-gradient(135deg, var(--pipeline-proc-cpu), #ca8a04);
+.c-latency-bar__segment--proc-gpu {
+  background: #eab308 !important; /* Force la couleur jaune */
+  background-color: #eab308 !important; /* DEBUG: couleur de secours */
+}
+
+.c-latency-bar__segment--gpu-cpu {
+  background: #ef4444 !important; /* Force la couleur rouge */
+  background-color: #ef4444 !important; /* DEBUG: couleur de secours */
 }
 
 .c-latency-bar__segment--cpu-tx {
-  background: linear-gradient(135deg, var(--pipeline-cpu-tx), #7c3aed);
+  background: #a855f7 !important; /* Force la couleur violette */
+  background-color: #a855f7 !important; /* DEBUG: couleur de secours */
 }
 
 /* Latency Details */
@@ -187,19 +198,24 @@
   box-shadow: var(--shadow-md);
 }
 
-.c-latency-details__item--rx-gpu {
+.c-latency-details__item--rx-cpu {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.05));
-  border-color: var(--pipeline-rx-gpu);
+  border-color: var(--pipeline-rx-cpu);
 }
 
-.c-latency-details__item--gpu-proc {
+.c-latency-details__item--cpu-gpu {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(29, 78, 216, 0.05));
-  border-color: var(--pipeline-gpu-proc);
+  border-color: var(--pipeline-cpu-gpu);
 }
 
-.c-latency-details__item--proc-cpu {
+.c-latency-details__item--proc-gpu {
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(202, 138, 4, 0.05));
-  border-color: var(--pipeline-proc-cpu);
+  border-color: var(--pipeline-proc-gpu);
+}
+
+.c-latency-details__item--gpu-cpu {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+  border-color: var(--pipeline-gpu-cpu);
 }
 
 .c-latency-details__item--cpu-tx {

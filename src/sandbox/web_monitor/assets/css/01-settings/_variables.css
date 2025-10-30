@@ -12,4 +12,24 @@
   --z-nav: 1000;
   --z-sidebar: 900;
   --z-modal: 2000;
+
+  /* ==========================================================
+     🎨 Couleurs pipeline (latence inter-étapes)
+     ========================================================== */
+  --pipeline-rx-cpu:   #22c55e;  /* 🟢 Vert — Acquisition RX→CPU */
+  --pipeline-cpu-gpu:  #3b82f6;  /* 🔵 Bleu — Upload CPU→GPU */
+  --pipeline-proc-gpu: #eab308;  /* 🟡 Jaune — Traitement GPU */
+  --pipeline-gpu-cpu:  #ef4444;  /* 🔴 Rouge — Download GPU→CPU */
+  --pipeline-cpu-tx:   #a855f7;  /* 🟣 Violet — Transmission CPU→TX */
+
+  /* ==========================================================
+     ⚙️ Couleurs secondaires (cohérence UI)
+     ========================================================== */
+  --gpu-warning:  #facc15;
+  --gpu-critical: #ef4444;
+  --gpu-normal:   #10b981;
+  --queue-warning: #f59e0b;
+  --queue-critical: #dc2626;
+
+
 }

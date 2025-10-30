@@ -32,7 +32,50 @@ class UIManager {
     init() {
         this.initializeAnimations();
         this.initializeInteractions();
+        this.diagnosticDOM(); // Ajout du diagnostic
         console.log('✨ UIManager initialisé');
+    }
+
+    /**
+     * Diagnostic de la structure DOM
+     */
+    diagnosticDOM() {
+        console.log('🔧 [DIAGNOSTIC] Vérification de la structure DOM...');
+        
+        // Vérification de la barre de latence principale
+        const latencyBar = document.getElementById('latency-bar');
+        console.log('🔧 [DIAGNOSTIC] Barre de latence:', latencyBar ? 'trouvée' : 'NON TROUVÉE');
+        
+        // Vérification de chaque segment
+        const segmentIds = [
+            'segment-rx-cpu',
+            'segment-cpu-gpu', 
+            'segment-proc-gpu',
+            'segment-gpu-cpu',
+            'segment-cpu-tx'
+        ];
+        
+        segmentIds.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                const computedStyle = getComputedStyle(element);
+                console.log(`🔧 [DIAGNOSTIC] ${id}:`, {
+                    trouvé: 'OUI',
+                    classes: element.className,
+                    styleWidth: element.style.width,
+                    computedWidth: computedStyle.width,
+                    display: computedStyle.display,
+                    backgroundColor: computedStyle.backgroundColor,
+                    visibility: computedStyle.visibility
+                });
+            } else {
+                console.error(`❌ [DIAGNOSTIC] ${id}: NON TROUVÉ`);
+            }
+        });
+        
+        // Vérification du parent container
+        const container = document.querySelector('.c-latency-bar-container');
+        console.log('🔧 [DIAGNOSTIC] Container:', container ? 'trouvé' : 'NON TROUVÉ');
     }
 
     /**
@@ -95,6 +138,8 @@ class UIManager {
      * Met à jour les métriques de pipeline
      */
     updatePipelineMetrics(data) {
+        console.log('🔄 [DEBUG] updatePipelineMetrics appelée avec:', JSON.stringify(data, null, 2));
+        
         // Valeurs individuelles
         if (data.rx_to_gpu !== undefined) {
             this.updateElement('interstage-rx-gpu', `${data.rx_to_gpu.toFixed(1)} ms`);
@@ -115,49 +160,123 @@ class UIManager {
             this.updateElement('interstage-samples', data.samples);
         }
 
+        // Vérification des clés de données pour la barre
+        console.log('🔍 [DEBUG] Clés de données disponibles:', Object.keys(data));
+        console.log('🔍 [DEBUG] Valeurs de pipeline détectées:', {
+            rx_cpu: data.rx_cpu,
+            cpu_gpu: data.cpu_gpu,
+            proc_gpu: data.proc_gpu,
+            gpu_cpu: data.gpu_cpu,
+            cpu_tx: data.cpu_tx,
+            total: data.total
+        });
+
         // Barre de progression colorée
         this.updateLatencyBar(data);
     }
 
-    /**
-     * Met à jour la barre de latence colorée
-     */
     updateLatencyBar(data) {
-        const rxCpu = data.rx_cpu || 0;
-        const cpuGpu = data.cpu_gpu || 0;
-        const procGpu = data.proc_gpu || 0;
-        const gpuCpu = data.gpu_cpu || 0;
-        const cpuTx = data.cpu_tx || 0;
-        const total = rxCpu + cpuGpu + procGpu + gpuCpu + cpuTx;
+        if (!data) return;
+        console.log('📊 [DEBUG] updateLatencyBar appelée avec:', data);
 
-        if (total > 0) {
-            // Calcul des pourcentages
-            const rxCpuPercent = (rxCpu / total) * 100;
-            const cpuGpuPercent = (cpuGpu / total) * 100;
-            const procGpuPercent = (procGpu / total) * 100;
-            const gpuCpuPercent = (gpuCpu / total) * 100;
-            const cpuTxPercent = (cpuTx / total) * 100;
+        // Extraction avec sécurité
+        const rxCpu  = parseFloat(data.rx_cpu  || 0);
+        const cpuGpu = parseFloat(data.cpu_gpu || 0);
+        const procGpu= parseFloat(data.proc_gpu|| 0);
+        const gpuCpu = parseFloat(data.gpu_cpu || 0);
+        const cpuTx  = parseFloat(data.cpu_tx  || 0);
 
-            // Mise à jour des segments
-            this.updateSegment('segment-rx-cpu', rxCpuPercent, `RX→CPU: ${rxCpu.toFixed(1)}ms`);
-            this.updateSegment('segment-cpu-gpu', cpuGpuPercent, `CPU→GPU: ${cpuGpu.toFixed(1)}ms`);
-            this.updateSegment('segment-proc-gpu', procGpuPercent, `PROC(GPU): ${procGpu.toFixed(1)}ms`);
-            this.updateSegment('segment-gpu-cpu', gpuCpuPercent, `GPU→CPU: ${gpuCpu.toFixed(1)}ms`);
-            this.updateSegment('segment-cpu-tx', cpuTxPercent, `CPU→TX: ${cpuTx.toFixed(1)}ms`);
+        // Debug des valeurs extraites
+        console.log('📊 [DEBUG] Valeurs extraites:', {
+            rxCpu, cpuGpu, procGpu, gpuCpu, cpuTx
+        });
 
-            // Animation de mise à jour
-            this.animateLatencyBar();
+        // Utiliser le total transmis si présent, sinon recalculer
+        const total = parseFloat(data.total || (rxCpu + cpuGpu + procGpu + gpuCpu + cpuTx));
+        console.log('📊 [DEBUG] Total calculé:', total);
+        
+        if (total <= 0) {
+            console.warn('⚠️ [DEBUG] Total <= 0, pas de mise à jour');
+            return;
+        }
+
+        // Calcul des pourcentages exacts
+        const ratios = {
+            rx_cpu:  (rxCpu  / total) * 100,
+            cpu_gpu: (cpuGpu / total) * 100,
+            proc_gpu:(procGpu/ total) * 100,
+            gpu_cpu: (gpuCpu/ total) * 100,
+            cpu_tx:  (cpuTx  / total) * 100
+        };
+
+        console.log('📊 [DEBUG] Pourcentages calculés:', ratios);
+
+        // Mise à jour DOM dans un ordre stable
+        const segments = [
+            ['segment-rx-cpu',  ratios.rx_cpu,  `RX→CPU: ${rxCpu.toFixed(1)}ms`],
+            ['segment-cpu-gpu', ratios.cpu_gpu, `CPU→GPU: ${cpuGpu.toFixed(1)}ms`],
+            ['segment-proc-gpu',ratios.proc_gpu,`PROC(GPU): ${procGpu.toFixed(1)}ms`],
+            ['segment-gpu-cpu', ratios.gpu_cpu, `GPU→CPU: ${gpuCpu.toFixed(1)}ms`],
+            ['segment-cpu-tx',  ratios.cpu_tx,  `CPU→TX: ${cpuTx.toFixed(1)}ms`],
+        ];
+
+        console.log('📊 [DEBUG] Configuration des segments:', segments);
+
+        segments.forEach(([id, pct, tooltip]) => {
+            const el = document.getElementById(id);
+            console.log(`📊 [DEBUG] Traitement segment ${id}:`, {
+                element: el ? 'trouvé' : 'NON TROUVÉ',
+                percentage: pct,
+                tooltip: tooltip
+            });
+            
+            if (el) {
+                const w = Math.max(pct, 1.5); // min 1.5% visible
+                console.log(`📊 [DEBUG] Définition largeur ${id}: ${w}%`);
+                el.style.width = `${w}%`;
+                el.title = tooltip;
+                el.style.flexGrow = 0; // évite les déformations
+                
+                // Debug des styles appliqués
+                const computedStyles = getComputedStyle(el);
+                console.log(`📊 [DEBUG] Styles finaux ${id}:`, {
+                    width: el.style.width,
+                    display: computedStyles.display,
+                    background: computedStyles.background,
+                    backgroundColor: computedStyles.backgroundColor,
+                    visibility: computedStyles.visibility,
+                    borderColor: computedStyles.borderColor
+                });
+            } else {
+                console.error(`❌ [DEBUG] Élément ${id} non trouvé dans le DOM!`);
+            }
+        });
+
+        // Ajoute une légère animation de rafraîchissement
+        const latencyBar = document.getElementById('latency-bar');
+        if (latencyBar) {
+            latencyBar.classList.add('updating');
+            setTimeout(() => latencyBar.classList.remove('updating'), 800);
+            console.log('📊 [DEBUG] Animation de rafraîchissement ajoutée');
+        } else {
+            console.error('❌ [DEBUG] Barre de latence non trouvée!');
         }
     }
+
 
     /**
      * Met à jour un segment de la barre de latence
      */
     updateSegment(elementId, percentage, tooltip) {
+        console.log(`📊 [DEBUG] updateSegment: ${elementId} = ${percentage.toFixed(1)}% (${tooltip})`);
         const element = document.getElementById(elementId);
         if (element) {
-            element.style.width = `${Math.max(percentage, 2)}%`;
+            const finalPercentage = Math.max(percentage, 2); // Minimum 2% pour visibilité
+            element.style.width = `${finalPercentage}%`;
             element.title = tooltip;
+            console.log(`📊 [DEBUG] Segment ${elementId} mis à jour: ${finalPercentage}%`);
+        } else {
+            console.warn(`⚠️ [DEBUG] Élément de segment non trouvé: ${elementId}`);
         }
     }
 
