@@ -81,6 +81,4 @@ def register_api_routes(app):
         html_path = base_dir / "templates" / "dashboard.html"
         return html_path.read_text(encoding="utf-8")
 
-    # 🔗 Fichiers statiques
-    app.mount("/javascript", StaticFiles(directory=str(base_dir / "javascript")), name="javascript")
-    app.mount("/assets", StaticFiles(directory=str(base_dir / "assets")), name="assets")
+    # Note: Les fichiers statiques sont maintenant montés dans app_factory.py

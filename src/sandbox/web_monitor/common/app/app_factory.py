@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from pathlib import Path
 import logging
 
 # from sandbox.web_monitor.common import app
@@ -70,8 +71,13 @@ def create_app(cfg):
     async def validation_exception_handler(request, exc):
         return JSONResponse({"error": "invalid request", "details": exc.errors()}, status_code=422)
 
-    # Montage statique
-    app.mount("/assets", StaticFiles(directory="src/sandbox/web_monitor/assets"), name="assets")
+    # Montage statique - chemin mis à jour pour être relatif au working directory
+    base_dir = Path(__file__).resolve().parents[2]
+    assets_path = base_dir / "assets"
+    javascript_path = base_dir / "javascript"
+    
+    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+    app.mount("/javascript", StaticFiles(directory=str(javascript_path)), name="javascript")
 
     app.state.cfg = cfg  # accessible immédiatement par ws_routes
 

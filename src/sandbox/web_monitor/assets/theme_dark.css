@@ -1,17 +1,238 @@
 /* ==========================================================
-   theme_dark.css — Thème sombre
+   theme_dark.css — Thème Professionnel Sombre
+   UltraMotion IGT - Hôpitaux Universitaires de Genève
    ----------------------------------------------------------
-   Palette sombre inspirée des dashboards techniques (GPU Monitor)
+   Palette sophistiquée inspirée des environnements médicaux
+   et des dashboards de monitoring haute performance.
+   Design system cohérent avec nuances subtiles.
    ========================================================== */
 
 :root {
-  --bg-color: #0d1117;
-  --card-bg: #161b22;
-  --border-color: #30363d;
-  --text-color: #e6edf3;
-  --accent-color: #4fc3f7;
-  --value-color: #58a6ff;
-  --ok-color: #10b981;
+  /* ==================== COULEURS DE BASE ==================== */
+  
+  /* Arrière-plans principaux */
+  --bg-color: #0a0e1a;              /* Fond principal très sombre */
+  --sidebar-bg: #0f1419;            /* Sidebar légèrement plus claire */
+  --nav-bg: rgba(15, 20, 25, 0.95); /* Navigation semi-transparente */
+  --card-bg: #161b22;               /* Cartes principales */
+  --card-header-bg: #1c2128;        /* En-têtes de cartes */
+  --metric-bg: #0d1117;             /* Métriques et indicateurs */
+  --metric-hover-bg: #161b22;       /* Hover des métriques */
+  
+  /* ==================== COULEURS FONCTIONNELLES ==================== */
+  
+  /* Texte */
+  --text-color: #e6edf3;            /* Texte principal */
+  --text-muted: #8b949e;            /* Texte secondaire */
+  --text-subtle: #656d76;           /* Texte très discret */
+  
+  /* Bordures */
+  --border-color: #30363d;          /* Bordures principales */
+  --border-subtle: #21262d;         /* Bordures discrètes */
+  
+  /* ==================== COULEURS D'ACCENT ==================== */
+  
+  /* Accent principal - Bleu médical */
+  --accent-color: #4fc3f7;          /* Bleu cyan professionnel */
+  --accent-bg: rgba(79, 195, 247, 0.1);
+  --accent-border: rgba(79, 195, 247, 0.3);
+  
+  /* Couleurs secondaires */
+  --secondary-color: #7c3aed;       /* Violet technologique */
+  --secondary-bg: rgba(124, 58, 237, 0.1);
+  --secondary-border: rgba(124, 58, 237, 0.3);
+  
+  /* Couleurs de performance */
+  --primary-color: #0ea5e9;         /* Bleu performance */
+  --primary-bg: rgba(14, 165, 233, 0.1);
+  --primary-border: rgba(14, 165, 233, 0.3);
+  
+  /* ==================== COULEURS D'ÉTAT ==================== */
+  
+  /* Succès - Vert médical */
+  --success-color: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.1);
+  --success-border: rgba(16, 185, 129, 0.3);
+  --ok-color: var(--success-color);
+  
+  /* Attention - Orange/Ambre */
+  --warning-color: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --warning-border: rgba(245, 158, 11, 0.3);
+  
+  /* Erreur - Rouge médical */
   --error-color: #ef4444;
-  --reference-bg: rgba(255, 255, 255, 0.05);
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --error-border: rgba(239, 68, 68, 0.3);
+  
+  /* Information - Cyan */
+  --info-color: #06b6d4;
+  --info-bg: rgba(6, 182, 212, 0.1);
+  --info-border: rgba(6, 182, 212, 0.3);
+  
+  /* ==================== COULEURS SPÉCIALISÉES ==================== */
+  
+  /* Valeurs et métriques */
+  --value-color: #58a6ff;           /* Valeurs numériques */
+  --highlight-color: #ffd700;       /* Valeurs importantes */
+  
+  /* Icônes */
+  --icon-bg: rgba(139, 148, 158, 0.1);
+  --icon-color: #8b949e;
+  
+  /* Background de référence */
+  --reference-bg: rgba(255, 255, 255, 0.03);
+  
+  /* ==================== DÉGRADÉS PROFESSIONNELS ==================== */
+  
+  /* Dégradé principal */
+  --gradient-primary: linear-gradient(135deg, #4fc3f7 0%, #0ea5e9 100%);
+  --gradient-secondary: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  
+  /* Dégradés subtils pour les cartes */
+  --gradient-card: linear-gradient(145deg, #161b22 0%, #1c2128 100%);
+  --gradient-hover: linear-gradient(145deg, #1c2128 0%, #22272e 100%);
+  
+  /* ==================== COULEURS SPÉCIFIQUES AU CONTEXTE MÉDICAL ==================== */
+  
+  /* Couleurs inspirées de l'environnement hospitalier */
+  --medical-blue: #4fc3f7;          /* Bleu stérilisation */
+  --medical-teal: #14b8a6;          /* Vert-bleu équipement */
+  --medical-green: #10b981;         /* Vert monitoring */
+  --medical-amber: #f59e0b;         /* Ambre attention */
+  --medical-red: #ef4444;           /* Rouge urgence */
+  
+  /* États de monitoring GPU */
+  --gpu-idle: #6b7280;              /* GPU au repos */
+  --gpu-active: #10b981;            /* GPU actif normal */
+  --gpu-intensive: #f59e0b;         /* GPU charge élevée */
+  --gpu-critical: #ef4444;          /* GPU surchargé */
+  
+  /* ==================== TRANSPARENCES ==================== */
+  
+  /* Overlays */
+  --overlay-light: rgba(255, 255, 255, 0.05);
+  --overlay-medium: rgba(255, 255, 255, 0.1);
+  --overlay-dark: rgba(0, 0, 0, 0.3);
+  
+  /* États hover/focus */
+  --hover-overlay: rgba(255, 255, 255, 0.08);
+  --focus-overlay: rgba(79, 195, 247, 0.2);
+  --active-overlay: rgba(79, 195, 247, 0.3);
+  
+  /* ==================== COULEURS DE DONNÉES ==================== */
+  
+  /* Graphiques et visualisations */
+  --chart-primary: #4fc3f7;
+  --chart-secondary: #7c3aed;
+  --chart-tertiary: #10b981;
+  --chart-quaternary: #f59e0b;
+  --chart-grid: #30363d;
+  
+  /* Pipeline et flux de données */
+  --pipeline-rx: #06b6d4;           /* Réception */
+  --pipeline-gpu: #7c3aed;          /* Traitement GPU */
+  --pipeline-proc: #10b981;         /* Processus */
+  --pipeline-tx: #f59e0b;           /* Transmission */
+  
+  /* ==================== COULEURS CONTEXTUELLES HUG ==================== */
+  
+  /* Inspiration couleurs institutionnelles suisses */
+  --hug-primary: #4fc3f7;           /* Bleu technologie médicale */
+  --hug-secondary: #0ea5e9;         /* Bleu innovation */
+  --hug-accent: #10b981;            /* Vert recherche */
+  --hug-neutral: #8b949e;           /* Gris neutre */
+  
+  /* ==================== ANIMATIONS ET TRANSITIONS ==================== */
+  
+  /* Couleurs d'animation */
+  --pulse-color: rgba(79, 195, 247, 0.6);
+  --glow-color: rgba(79, 195, 247, 0.4);
+  --shimmer-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== COULEURS SPÉCIALES POUR COMPOSANTS ==================== */
+
+/* Indicateurs de statut avec couleurs distinctes */
+.status-operational { color: var(--success-color); }
+.status-warning { color: var(--warning-color); }
+.status-critical { color: var(--error-color); }
+.status-unknown { color: var(--text-muted); }
+
+/* Indicateurs de performance GPU */
+.gpu-low { color: var(--gpu-idle); }
+.gpu-normal { color: var(--gpu-active); }
+.gpu-high { color: var(--gpu-intensive); }
+.gpu-critical { color: var(--gpu-critical); }
+
+/* Variations de cartes selon le contexte */
+.card-performance { border-color: var(--primary-border); }
+.card-health { border-color: var(--success-border); }
+.card-alert { border-color: var(--warning-border); }
+.card-critical { border-color: var(--error-border); }
+
+/* ==================== COULEURS RESPONSIVES ==================== */
+
+/* Adaptations pour les petits écrans */
+@media (max-width: 768px) {
+  :root {
+    /* Contraste légèrement augmenté sur mobile */
+    --text-color: #f0f6fc;
+    --border-color: #373e47;
+  }
+}
+
+/* Mode haute performance (optionnel) */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    /* Couleurs avec animations subtiles */
+    --accent-color: #4fc3f7;
+    --glow-intensity: 0.4;
+  }
+}
+
+/* Préférences d'accessibilité */
+@media (prefers-contrast: high) {
+  :root {
+    /* Contraste renforcé pour l'accessibilité */
+    --text-color: #ffffff;
+    --border-color: #58a6ff;
+    --accent-color: #79c0ff;
+  }
+}
+
+/* ==================== ÉTATS SPÉCIAUX ==================== */
+
+/* États de connexion */
+.connection-active { color: var(--success-color); }
+.connection-unstable { color: var(--warning-color); }
+.connection-lost { color: var(--error-color); }
+
+/* États de queue */
+.queue-empty { color: var(--success-color); }
+.queue-normal { color: var(--info-color); }
+.queue-full { color: var(--warning-color); }
+.queue-overflow { color: var(--error-color); }
+
+/* ==================== THÈME SOMBRE AVANCÉ ==================== */
+
+/* Effet glassmorphism subtil */
+.glass-effect {
+  background: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Effet neon subtil pour les éléments importants */
+.neon-glow {
+  box-shadow: 0 0 20px rgba(79, 195, 247, 0.3);
+}
+
+/* Effet de profondeur pour les cartes importantes */
+.depth-effect {
+  box-shadow: 
+    0 4px 6px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
