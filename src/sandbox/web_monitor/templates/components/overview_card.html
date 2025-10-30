@@ -1,0 +1,45 @@
+<!-- Overview Card Component -->
+<div class="sidebar-overview">
+    <div class="overview-header">
+        <h2><i class="fas fa-chart-pie"></i> Vue d'ensemble</h2>
+    </div>
+    <div class="overview-content">
+        <div class="overview-grid">
+            <div class="overview-item">
+                <span class="overview-label">GPU</span>
+                <span id="overview-gpu-util" class="overview-value">0%</span>
+            </div>
+            <div class="overview-item">
+                <span class="overview-label">Latence</span>
+                <span id="overview-latency" class="overview-value">0.0 ms</span>
+            </div>
+            <div class="overview-item">
+                <span class="overview-label">Files</span>
+                <span id="overview-queue" class="overview-value">0</span>
+            </div>
+            <div class="overview-item">
+                <span class="overview-label">Santé</span>
+                <span id="system-health" class="overview-value status-unknown">Inconnu</span>
+            </div>
+        </div>
+        
+        <div class="overview-device">
+            <div class="device-info">
+                <span class="device-label">Device</span>
+                <span id="sidebar-gpu-device" class="device-value">--</span>
+            </div>
+            <div class="device-info">
+                <span class="device-label">Driver</span>
+                <span id="sidebar-gpu-driver" class="device-value">--</span>
+            </div>
+            <div class="device-info">
+                <span class="device-label">Streams</span>
+                <span id="sidebar-gpu-streams" class="device-value">--</span>
+            </div>
+        </div>
+        
+        <div class="overview-footer">
+            <span>Dernière MAJ : <span id="sidebar-last-update">--</span></span>
+        </div>
+    </div>
+</div>

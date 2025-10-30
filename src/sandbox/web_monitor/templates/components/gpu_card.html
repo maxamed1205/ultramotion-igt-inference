@@ -1,0 +1,43 @@
+<!-- GPU Card Component -->
+<div class="card card-secondary">
+    <div class="card-header">
+        <h3><i class="fas fa-microchip"></i> Performance GPU</h3>
+        <div class="card-subtitle">Métriques de traitement</div>
+    </div>
+    <div class="card-content">
+        <div class="gpu-metrics">
+            <div class="gpu-metric-row">
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-images"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Frames</span>
+                        <span id="gpu-frames" class="metric-value">0</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-clock"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Latence moy.</span>
+                        <span id="gpu-avg-lat" class="metric-value">0.0 ms</span>
+                    </div>
+                </div>
+            </div>
+            <div class="gpu-metric-row">
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-tachometer-alt"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Throughput</span>
+                        <span id="gpu-throughput" class="metric-value">0.0 FPS</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon"><i class="fas fa-layer-group"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Norm/Pin/Copy</span>
+                        <span id="gpu-breakdown" class="metric-value">0/0/0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

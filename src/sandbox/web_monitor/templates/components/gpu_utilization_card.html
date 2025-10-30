@@ -1,0 +1,48 @@
+<!-- GPU Utilization Card Component -->
+<div class="card card-accent">
+    <div class="card-header">
+        <h3><i class="fas fa-chart-pie"></i> Utilisation GPU</h3>
+        <div class="card-subtitle">Monitoring en temps réel</div>
+    </div>
+    <div class="card-content">
+        <div class="gpu-utilization">
+            <div class="gpu-util-circle-container">
+                <svg class="gpu-util-svg" viewBox="0 0 36 36">
+                    <path class="gpu-util-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                    <path id="gpu-util-circle" class="gpu-util-fg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                </svg>
+                <div class="gpu-util-text">
+                    <span id="gpu-util" class="gpu-util-value">0</span>
+                    <span class="gpu-util-symbol">%</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="gpu-details">
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Device</span>
+                <span id="gpu-device" class="gpu-detail-value">--</span>
+            </div>
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Driver / CUDA</span>
+                <span id="gpu-driver" class="gpu-detail-value">--</span>
+            </div>
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Streams actifs</span>
+                <span id="gpu-streams" class="gpu-detail-value">--</span>
+            </div>
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Mémoire utilisée</span>
+                <span id="gpu-memory" class="gpu-detail-value">-- MB</span>
+            </div>
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Mémoire réservée</span>
+                <span id="gpu-memory-reserved" class="gpu-detail-value">-- MB</span>
+            </div>
+            <div class="gpu-detail-row">
+                <span class="gpu-detail-label">Dernière MAJ</span>
+                <span id="gpu-last-update" class="gpu-detail-value">-- s</span>
+            </div>
+        </div>
+    </div>
+</div>

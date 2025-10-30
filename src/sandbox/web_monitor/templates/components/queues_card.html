@@ -1,0 +1,37 @@
+<!-- Queues Card Component -->
+<div class="card card-warning">
+    <div class="card-header">
+        <h3><i class="fas fa-list-ul"></i> Files d'attente</h3>
+        <div class="card-subtitle">État des queues de traitement</div>
+    </div>
+    <div class="card-content">
+        <div class="queue-metrics">
+            <div class="queue-item">
+                <div class="queue-header">
+                    <span class="queue-label">Queue RT</span>
+                    <span id="queue-rt" class="queue-value">0</span>
+                </div>
+                <div id="queue-rt-bar" class="queue-bar">
+                    <div class="queue-fill"></div>
+                </div>
+            </div>
+            
+            <div class="queue-item">
+                <div class="queue-header">
+                    <span class="queue-label">Queue GPU</span>
+                    <span id="queue-gpu" class="queue-value">0</span>
+                </div>
+                <div id="queue-gpu-bar" class="queue-bar">
+                    <div class="queue-fill"></div>
+                </div>
+            </div>
+            
+            <div class="queue-item">
+                <div class="queue-header">
+                    <span class="queue-label">Drops</span>
+                    <span id="queue-drops" class="queue-value error">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

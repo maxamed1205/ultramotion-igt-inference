@@ -62,23 +62,33 @@ async def get_frames():
     ]
     return json_ok({"frames": frames})
 
-from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
+from fastapi.responses import RedirectResponse, HTMLResponse
+from pathlib import Path
 
 def register_api_routes(app):
     """Enregistre les routes API et frontend statiques."""
     app.include_router(router)
 
     base_dir = Path(__file__).resolve().parents[2]
+    templates = Jinja2Templates(directory=str(base_dir / "templates"))
 
-    # 🏠 Redirection de la racine vers le dashboard
+    # 🏠 Redirection racine
     @app.get("/", include_in_schema=False)
     async def root_redirect():
         return RedirectResponse(url="/dashboard")
 
-    # 📊 Page principale
+    # 📊 Page principale rendue via Jinja2
     @app.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard():
-        html_path = base_dir / "templates" / "dashboard.html"
-        return html_path.read_text(encoding="utf-8")
+    async def dashboard(request: Request):
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,  # ⚠️ obligatoire pour FastAPI
+                "title": "Dashboard Temps Réel | UltraMotion IGT"
+            }
+        )
+
 
     # Note: Les fichiers statiques sont maintenant montés dans app_factory.py

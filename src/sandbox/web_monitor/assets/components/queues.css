@@ -1,0 +1,82 @@
+/* ==================== QUEUES COMPONENT STYLES ==================== */
+
+.queue-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.queue-item {
+  padding: var(--spacing-md);
+  background: var(--background-secondary);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+}
+
+.queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.queue-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.queue-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.queue-value.error {
+  color: var(--error-color);
+}
+
+.queue-bar {
+  height: 8px;
+  background: var(--background-dark);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.queue-fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 3px;
+  transition: width 0.4s ease-out, background-color 0.3s ease;
+  width: 0%;
+}
+
+/* Queue status colors */
+.queue-fill.warning {
+  background: var(--warning-color);
+}
+
+.queue-fill.critical {
+  background: var(--error-color);
+}
+
+/* Queue animations */
+@keyframes queuePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.queue-item.active .queue-fill {
+  animation: queuePulse 2s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .queue-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+}
