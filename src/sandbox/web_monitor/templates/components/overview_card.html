@@ -1,45 +1,66 @@
 <!-- Overview Card Component -->
-<div class="sidebar-overview">
-    <div class="overview-header">
-        <h2><i class="fas fa-chart-pie"></i> Vue d'ensemble</h2>
+<div class="sidebar-header">
+    <h3><i class="fas fa-chart-line"></i> Vue d'ensemble</h3>
+</div>
+
+<div class="overview-card">
+    <div class="overview-item">
+        <div class="overview-icon status-ok">
+            <i class="fas fa-heartbeat"></i>
+        </div>
+        <div class="overview-content">
+            <span class="overview-label">Système</span>
+            <span id="system-health" class="overview-value">Opérationnel</span>
+        </div>
     </div>
-    <div class="overview-content">
-        <div class="overview-grid">
-            <div class="overview-item">
-                <span class="overview-label">GPU</span>
-                <span id="overview-gpu-util" class="overview-value">0%</span>
-            </div>
-            <div class="overview-item">
-                <span class="overview-label">Latence</span>
-                <span id="overview-latency" class="overview-value">0.0 ms</span>
-            </div>
-            <div class="overview-item">
-                <span class="overview-label">Files</span>
-                <span id="overview-queue" class="overview-value">0</span>
-            </div>
-            <div class="overview-item">
-                <span class="overview-label">Santé</span>
-                <span id="system-health" class="overview-value status-unknown">Inconnu</span>
-            </div>
+    
+    <div class="overview-item">
+        <div class="overview-icon">
+            <i class="fas fa-microchip"></i>
         </div>
-        
-        <div class="overview-device">
-            <div class="device-info">
-                <span class="device-label">Device</span>
-                <span id="sidebar-gpu-device" class="device-value">--</span>
-            </div>
-            <div class="device-info">
-                <span class="device-label">Driver</span>
-                <span id="sidebar-gpu-driver" class="device-value">--</span>
-            </div>
-            <div class="device-info">
-                <span class="device-label">Streams</span>
-                <span id="sidebar-gpu-streams" class="device-value">--</span>
-            </div>
+        <div class="overview-content">
+            <span class="overview-label">GPU Load</span>
+            <span id="overview-gpu-util" class="overview-value">73.2%</span>
         </div>
-        
-        <div class="overview-footer">
-            <span>Dernière MAJ : <span id="sidebar-last-update">--</span></span>
+    </div>
+    
+    <div class="overview-item">
+        <div class="overview-icon">
+            <i class="fas fa-clock"></i>
         </div>
+        <div class="overview-content">
+            <span class="overview-label">Latence</span>
+            <span id="overview-latency" class="overview-value">15.3 ms</span>
+        </div>
+    </div>
+    
+    <div class="overview-item">
+        <div class="overview-icon">
+            <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="overview-content">
+            <span class="overview-label">Queue</span>
+            <span id="overview-queue" class="overview-value">3</span>
+        </div>
+    </div>
+</div>
+
+<div class="system-info">
+    <h4><i class="fas fa-server"></i> Configuration</h4>
+    <div class="info-item">
+        <span>Device</span>
+        <span id="sidebar-gpu-device">NVIDIA RTX 4080</span>
+    </div>
+    <div class="info-item">
+        <span>Driver</span>
+        <span id="sidebar-gpu-driver">535.98 / CUDA 12.2</span>
+    </div>
+    <div class="info-item">
+        <span>Streams</span>
+        <span id="sidebar-gpu-streams">4</span>
+    </div>
+    <div class="info-item">
+        <span>Dernière MAJ</span>
+        <span id="sidebar-last-update">0 s</span>
     </div>
 </div>
