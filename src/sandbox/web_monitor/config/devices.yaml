@@ -1,0 +1,5 @@
+# Placeholder for device info (to be filled later)
+# devices:
+#   - name: GPU0
+#     type: cuda
+

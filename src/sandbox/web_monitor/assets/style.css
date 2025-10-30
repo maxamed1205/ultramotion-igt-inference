@@ -1,0 +1,116 @@
+/* ==========================================================
+   style.css — Structure & Layout
+   Ultramotion IGT Web Monitor
+   ----------------------------------------------------------
+   Contient uniquement la mise en page, la structure des cartes
+   et la typographie de base. Les couleurs viennent du thème.
+   ========================================================== */
+
+:root {
+  --font-main: 'Consolas', 'Courier New', monospace;
+  --radius: 10px;
+  --transition-speed: 0.3s;
+  --gap: 1.5rem;
+}
+
+/* Conteneur principal */
+body {
+  font-family: var(--font-main);
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color); /* défini dans le thème */
+  color: var(--text-color);
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* Titre principal */
+header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 2rem;
+  color: var(--accent-color);
+  text-align: center;
+}
+
+/* Grille de cartes */
+#metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--gap);
+}
+
+/* Carte */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 1rem 1.5rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  transition: transform var(--transition-speed);
+}
+.card:hover {
+  transform: translateY(-4px);
+}
+
+/* Titres de cartes */
+.card h2 {
+  font-size: 1.2rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--accent-color);
+}
+
+/* Lignes de métriques */
+.metric {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+.metric-label {
+  opacity: 0.8;
+}
+.metric-value {
+  font-weight: bold;
+  color: var(--value-color);
+}
+
+/* Bloc de référence GPU */
+.reference {
+  font-family: var(--font-main);
+  font-size: 0.9em;
+  background: var(--reference-bg);
+  padding: 0.8rem;
+  border-radius: var(--radius);
+  line-height: 1.4;
+}
+.ref-header {
+  font-weight: bold;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+.ref-note {
+  margin-top: 0.6rem;
+  opacity: 0.7;
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+/* Statuts */
+.status-ok {
+  color: var(--ok-color);
+}
+.status-error {
+  color: var(--error-color);
+}
+
+/* Pied de page */
+.footer {
+  text-align: center;
+  margin-top: 3rem;
+  opacity: 0.6;
+  font-size: 0.85em;
+}

@@ -1,0 +1,23 @@
+# Placeholder YAML configuration for Web Monitor (to be filled Phase 1)
+# version: 1
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8050
+  update_interval: 1.0
+  mode: "live"
+
+  log_paths:
+    kpi: "../../logs/kpi.log"
+    pipeline: "../../logs/pipeline.log"
+
+  gpu_monitor:
+    enabled: true
+    refresh_rate: 1.0
+
+  security:
+    enabled: false
+    token: "lab-igt-access"
+
+  ui:
+    theme: "dark"

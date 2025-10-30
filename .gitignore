@@ -2,6 +2,7 @@
 __pycache__/          # ➜ dossiers de cache Python
 *.py[cod]             # ➜ fichiers .pyc / .pyo / .pyd
 *$py.class            # ➜ fichiers générés par Jython ou PyInstaller
+*.pyc                # ➜ fichiers Python compilés
 
 # C extensions — fichiers binaires compilés
 *.so                  # ➜ bibliothèques partagées (Linux)

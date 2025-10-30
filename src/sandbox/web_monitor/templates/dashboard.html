@@ -1,0 +1,176 @@
+<!--
+templates/dashboard.html
+-------------------------
+Ultramotion IGT — Web Monitor (Phase 2b)
+Vue principale du tableau de bord temps réel.
+Les valeurs sont mises à jour via WebSocket (main.js).
+-->
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ultramotion IGT — Dashboard</title>
+
+    <!-- 🎨 Thème global -->
+    <link rel="stylesheet" href="/assets/style.css" />
+    <link rel="stylesheet" href="/assets/theme_dark.css" />
+
+    <!-- 🔗 Favicon et icônes -->
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
+    <link rel="manifest" href="/assets/site.webmanifest" />
+    <meta name="theme-color" content="#0d1117" />
+
+    <!-- 🧠 Logique WebSocket + DOM -->
+    <script type="module" src="/javascript/main.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Ultramotion IGT — Live Dashboard</h1>
+            <!-- (plus tard : nav bar / onglets) -->
+        </header>
+
+        <!-- ==================== MÉTRIQUES ==================== -->
+        <div id="metrics">
+
+            <!-- 📊 ÉTAT GÉNÉRAL -->
+            <div class="card">
+                <h2>📊 État Général</h2>
+                <div class="metric">
+                    <span class="metric-label">Statut</span>
+                    <span id="health-status" class="status status-ok">OK</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Dernière mise à jour</span>
+                    <span id="last-update" class="metric-value">--:--:--</span>
+                </div>
+            </div>
+
+            <!-- 🎯 PIPELINE GPU-RÉSIDENT -->
+            <div class="card">
+                <h2>🎯 Pipeline GPU-Résident (ms)</h2>
+                <div class="metric">
+                    <span class="metric-label">RX → CPU→GPU</span>
+                    <span id="interstage-rx-gpu" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">CPU→GPU → PROC</span>
+                    <span id="interstage-gpu-proc" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">PROC → GPU→CPU</span>
+                    <span id="interstage-proc-cpu" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">GPU→CPU → TX</span>
+                    <span id="interstage-cpu-tx" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">RX → TX TOTAL</span>
+                    <span id="interstage-total" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Échantillons</span>
+                    <span id="interstage-samples" class="metric-value">0</span>
+                </div>
+            </div>
+
+            <!-- 🎮 GPU TRANSFER -->
+            <div class="card">
+                <h2>🎮 GPU Transfer (ms)</h2>
+                <div class="metric">
+                    <span class="metric-label">Frames traitées</span>
+                    <span id="gpu-frames" class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Latence moyenne</span>
+                    <span id="gpu-avg-lat" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Norm / Pin / Copy</span>
+                    <span id="gpu-breakdown" class="metric-value">0 / 0 / 0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Throughput (FPS)</span>
+                    <span id="gpu-throughput" class="metric-value">0.0</span>
+                </div>
+            </div>
+
+            <!-- 💻 GPU UTILISATION -->
+            <div class="card">
+                <h2>💻 GPU Utilisation</h2>
+                <div class="metric">
+                    <span class="metric-label">Device</span>
+                    <span id="gpu-device" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Driver / CUDA</span>
+                    <span id="gpu-driver" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Streams actifs</span>
+                    <span id="gpu-streams" class="metric-value">N/A</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Utilisation (%)</span>
+                    <span id="gpu-util" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mémoire utilisée (MB)</span>
+                    <span id="gpu-memory" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mémoire réservée (MB)</span>
+                    <span id="gpu-memory-reserved" class="metric-value">0.0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Dernière mise à jour</span>
+                    <span id="gpu-last-update" class="metric-value">-- s</span>
+                </div>
+            </div>
+
+            <!-- 📘 VALEURS DE RÉFÉRENCE GPU -->
+            <div class="card">
+                <h2>📘 Valeurs de Référence GPU</h2>
+                <div class="reference">
+                    <div class="ref-header">ÉTAPE → UTIL (%) | MEM. UTIL. | MEM. RÉSERVÉE</div>
+                    <div><span>Idle</span> ........... 0–2 % | 200–400 MB | 400–600 MB</div>
+                    <div><span>D-FINE</span> ........ 60–80 % | 600–900 MB | 1000–1300 MB</div>
+                    <div><span>MobileSAM</span> ..... 80–99 % | 1000–1600 MB | 1800–2400 MB</div>
+                    <div><span>Post-clean</span> .... 5–10 % | 200–400 MB | 400–600 MB</div>
+                </div>
+                <div class="ref-note">
+                    💡 Valeurs typiques RTX 3080/4080 (varient selon GPU)
+                </div>
+            </div>
+
+            <!-- 📦 FILES D’ATTENTE -->
+            <div class="card">
+                <h2>📦 Files d’attente</h2>
+                <div class="metric">
+                    <span class="metric-label">Queue RT</span>
+                    <span id="queue-rt" class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Queue GPU</span>
+                    <span id="queue-gpu" class="metric-value">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Drops RT</span>
+                    <span id="queue-drops" class="metric-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PIED DE PAGE ==================== -->
+        <footer class="footer">
+            <p>Ultramotion IGT — Web Monitor · actualisation 1 s</p>
+        </footer>
+    </div>
+</body>
+</html>
