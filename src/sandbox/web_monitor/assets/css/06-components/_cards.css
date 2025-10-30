@@ -132,3 +132,105 @@
 .c-card--danger .c-card__header {
   background: var(--danger-bg);
 }
+
+/* Overview Components */
+.c-overview-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-lg);
+  overflow: hidden;
+}
+
+.c-overview-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  transition: var(--transition-fast);
+}
+
+.c-overview-item:last-child {
+  border-bottom: none;
+}
+
+.c-overview-item:hover {
+  background: var(--metric-hover-bg);
+}
+
+.c-overview-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--icon-bg);
+  color: var(--icon-color);
+}
+
+.c-overview-icon--status-ok {
+  background: var(--success-bg);
+  color: var(--success-color);
+}
+
+.c-overview-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c-overview-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.c-overview-value {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-color);
+  font-family: var(--font-mono);
+}
+
+/* System Info */
+.c-system-info {
+  margin-top: var(--spacing-lg);
+}
+
+.c-system-info h4 {
+  font-size: var(--font-size-md);
+  color: var(--text-color);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-weight: 600;
+}
+
+.c-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.c-info-item:last-child {
+  border-bottom: none;
+}
+
+.c-info-item span:first-child {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.c-info-item span:last-child {
+  color: var(--text-color);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

@@ -6,47 +6,47 @@
     </div>
     <div class="c-card__content">
         <!-- Barre de progression colorée -->
-        <div class="latency-bar-container">
-            <div class="latency-stages-labels">
+        <div class="c-latency-bar-container">
+            <div class="c-latency-bar__labels">
                 <span>RX→GPU</span>
                 <span>GPU→PROC</span>
                 <span>PROC→CPU</span>
                 <span>CPU→TX</span>
             </div>
-            <div class="latency-bar" id="latency-bar">
-                <div class="latency-segment rx-gpu" id="segment-rx-gpu" style="width: 12%" title="RX→GPU"></div>
-                <div class="latency-segment gpu-proc" id="segment-gpu-proc" style="width: 45%" title="GPU→PROC"></div>
-                <div class="latency-segment proc-cpu" id="segment-proc-cpu" style="width: 32%" title="PROC→CPU"></div>
-                <div class="latency-segment cpu-tx" id="segment-cpu-tx" style="width: 11%" title="CPU→TX"></div>
+            <div class="c-latency-bar" id="latency-bar">
+                <div class="c-latency-bar__segment c-latency-bar__segment--rx-gpu" id="segment-rx-gpu" style="width: 12%" title="RX→GPU"></div>
+                <div class="c-latency-bar__segment c-latency-bar__segment--gpu-proc" id="segment-gpu-proc" style="width: 45%" title="GPU→PROC"></div>
+                <div class="c-latency-bar__segment c-latency-bar__segment--proc-cpu" id="segment-proc-cpu" style="width: 32%" title="PROC→CPU"></div>
+                <div class="c-latency-bar__segment c-latency-bar__segment--cpu-tx" id="segment-cpu-tx" style="width: 11%" title="CPU→TX"></div>
             </div>
         </div>
         
         <!-- Résumé compact -->
-        <div class="pipeline-summary-compact">
-            <div class="summary-total">
+        <div class="c-pipeline-summary">
+            <div class="c-pipeline-summary__item">
                 <span>Total RX→TX : </span>
-                <span class="total-value" id="interstage-total">0.0 ms</span>
-                <span class="samples-info">(Frame : <span id="interstage-samples">0</span>)</span>
+                <span class="c-pipeline-summary__value c-pipeline-summary__value--highlight" id="interstage-total">0.0 ms</span>
+                <span class="c-pipeline-summary__label">(Frame : <span id="interstage-samples">0</span>)</span>
             </div>
         </div>
         
         <!-- Valeurs détaillées avec couleurs -->
-        <div class="latency-details">
-            <div class="detail-item rx-gpu-bg">
-                <span class="detail-label">RX→GPU</span>
-                <span class="detail-value" id="interstage-rx-gpu">0.0 ms</span>
+        <div class="c-latency-details">
+            <div class="c-latency-details__item">
+                <span class="c-latency-details__label">RX→GPU</span>
+                <span class="c-latency-details__value" id="interstage-rx-gpu">0.0 ms</span>
             </div>
-            <div class="detail-item gpu-proc-bg">
-                <span class="detail-label">GPU→PROC</span>
-                <span class="detail-value" id="interstage-gpu-proc">0.0 ms</span>
+            <div class="c-latency-details__item">
+                <span class="c-latency-details__label">GPU→PROC</span>
+                <span class="c-latency-details__value" id="interstage-gpu-proc">0.0 ms</span>
             </div>
-            <div class="detail-item proc-cpu-bg">
-                <span class="detail-label">PROC→CPU</span>
-                <span class="detail-value" id="interstage-proc-cpu">0.0 ms</span>
+            <div class="c-latency-details__item">
+                <span class="c-latency-details__label">PROC→CPU</span>
+                <span class="c-latency-details__value" id="interstage-proc-cpu">0.0 ms</span>
             </div>
-            <div class="detail-item cpu-tx-bg">
-                <span class="detail-label">CPU→TX</span>
-                <span class="detail-value" id="interstage-cpu-tx">0.0 ms</span>
+            <div class="c-latency-details__item">
+                <span class="c-latency-details__label">CPU→TX</span>
+                <span class="c-latency-details__value" id="interstage-cpu-tx">0.0 ms</span>
             </div>
         </div>
     </div>

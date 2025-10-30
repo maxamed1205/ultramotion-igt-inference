@@ -22,14 +22,7 @@
     <link rel="stylesheet" href="{{ url_for('assets', path='css/main.css') }}">
     
     <!-- LEGACY: Ancienne architecture (Temporaire) -->
-    <!-- <link rel="stylesheet" href="{{ url_for('assets', path='style.css') }}"> -->
     <link rel="stylesheet" href="{{ url_for('assets', path='theme_dark.css') }}">
-    
-    <!-- Component Styles -->
-    <link rel="stylesheet" href="{{ url_for('assets', path='components/overview.css') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='components/pipeline.css') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='components/gpu.css') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='components/queues.css') }}">
     
     {% block extra_css %}{% endblock %}
 </head>

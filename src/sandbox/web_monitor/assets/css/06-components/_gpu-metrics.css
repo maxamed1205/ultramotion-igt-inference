@@ -178,6 +178,40 @@
   font-size: var(--font-size-sm);
 }
 
+/* GPU Hardware Metrics */
+.c-gpu-hardware-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.c-gpu-hardware-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.c-gpu-hardware-metric:last-child {
+  border-bottom: none;
+}
+
+.c-gpu-hardware-metric__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.c-gpu-hardware-metric__value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: var(--font-mono);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .c-gpu-hardware-overview {

@@ -5,29 +5,29 @@
         <div class="c-card__subtitle">Gestion des buffers</div>
     </div>
     <div class="c-card__content">
-        <div class="queue-metrics">
-            <div class="queue-item">
-                <div class="queue-info">
-                    <span class="queue-icon"><i class="fas fa-circle"></i></span>
-                    <span class="queue-label">Queue RT</span>
+        <div class="c-queue-metrics">
+            <div class="c-queue-metric">
+                <div class="c-queue-metric__info">
+                    <span class="c-queue-metric__icon"><i class="fas fa-circle"></i></span>
+                    <span class="c-queue-metric__label">Queue RT</span>
                 </div>
-                <span id="queue-rt" class="queue-value">2</span>
+                <span id="queue-rt" class="c-queue-metric__value">2</span>
             </div>
             
-            <div class="queue-item">
-                <div class="queue-info">
-                    <span class="queue-icon"><i class="fas fa-circle"></i></span>
-                    <span class="queue-label">Queue GPU</span>
+            <div class="c-queue-metric">
+                <div class="c-queue-metric__info">
+                    <span class="c-queue-metric__icon"><i class="fas fa-circle"></i></span>
+                    <span class="c-queue-metric__label">Queue GPU</span>
                 </div>
-                <span id="queue-gpu" class="queue-value">1</span>
+                <span id="queue-gpu" class="c-queue-metric__value">1</span>
             </div>
             
-            <div class="queue-item queue-warning">
-                <div class="queue-info">
-                    <span class="queue-icon"><i class="fas fa-exclamation-triangle"></i></span>
-                    <span class="queue-label">Drops RT</span>
+            <div class="c-queue-metric c-queue-metric--warning">
+                <div class="c-queue-metric__info">
+                    <span class="c-queue-metric__icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    <span class="c-queue-metric__label">Drops RT</span>
                 </div>
-                <span id="queue-drops" class="queue-value">0</span>
+                <span id="queue-drops" class="c-queue-metric__value">0</span>
             </div>
         </div>
     </div>

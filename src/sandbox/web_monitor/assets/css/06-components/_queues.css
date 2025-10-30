@@ -131,3 +131,59 @@
   color: var(--text-color);
   font-size: var(--font-size-sm);
 }
+
+/* Trends Components */
+.c-trends-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.c-trend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--metric-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  transition: var(--transition-fast);
+}
+
+.c-trend-item:hover {
+  background: var(--metric-hover-bg);
+  border-color: var(--accent-color);
+}
+
+.c-trend-item__info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.c-trend-item__icon {
+  color: var(--icon-color);
+}
+
+.c-trend-item__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.c-trend-item__value {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.c-trend-item__value--positive {
+  color: var(--success-color);
+}
+
+.c-trend-item__value--negative {
+  color: var(--danger-color);
+}
+
+.c-trend-item__value--stable {
+  color: var(--text-muted);
+}
