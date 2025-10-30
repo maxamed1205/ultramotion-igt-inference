@@ -13,7 +13,7 @@
 class WebSocketManager {
     constructor(config = {}) {
         this.config = {
-            url: config.url || 'ws://localhost:8050/ws',
+            url: config.url || 'ws://localhost:8050/ws/v1/pipeline',
             reconnectInterval: config.reconnectInterval || 5000,
             maxReconnectAttempts: config.maxReconnectAttempts || 10,
             ...config

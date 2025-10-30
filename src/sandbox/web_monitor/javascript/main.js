@@ -34,7 +34,7 @@ class UltraMotionApp {
     loadGlobalConfig() {
         return {
             websocket: {
-                url: 'ws://localhost:8050/ws',
+                url: 'ws://localhost:8050/ws/v1/pipeline',
                 reconnectInterval: 5000,
                 maxReconnectAttempts: 10
             },

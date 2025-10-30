@@ -13,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
-from flask import app
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from pathlib import Path
 import logging
@@ -82,12 +81,27 @@ def create_app(cfg):
 
     app.state.cfg = cfg  # accessible immédiatement par ws_routes
 
+
+    # --- Attache un LogCollector simulé (pour dashboard local) ---
+    try:
+        from sandbox.web_monitor.common.collector.log_collector.collector import LogCollector
+        import tempfile
+
+        # Crée deux fichiers logs temporaires (pipeline + kpi)
+        tmp1 = tempfile.NamedTemporaryFile(delete=False).name
+        tmp2 = tempfile.NamedTemporaryFile(delete=False).name
+        app.state.collector = LogCollector(tmp1, tmp2)
+        log.info("[APP] Collector simulé attaché à app.state.collector")
+    except Exception as e:
+        log.warning(f"[APP] Impossible d’attacher un collector simulé: {e}")
+
+
     # Enregistrement des routes (API et WebSocket)
     register_api_routes(app)
     register_ws_routes(app)
 
     # Log de démarrage
-    log.info("Application FastAPI configurée avec CORS et sécurité LAN")
+    # log.info("Application FastAPI configurée avec CORS et sécurité LAN")
 
 
     #Route de santé (health check)

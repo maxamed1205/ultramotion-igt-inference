@@ -46,7 +46,7 @@ class DashboardModule {
     initializeManagers() {
         // Configuration WebSocket
         const wsConfig = {
-            url: 'ws://localhost:8050/ws',
+            url: 'ws://localhost:8050/ws/v1/pipeline',
             reconnectInterval: 5000,
             maxReconnectAttempts: 10
         };
@@ -100,6 +100,13 @@ class DashboardModule {
             this.uiManager.updateSystemHealth(data);
             this.timeManager.markLastUpdate();
         });
+
+        // Ajout du listener manquant
+        this.wsManager.on('system_metrics', (data) => {
+            this.uiManager.updateSystemMetrics(data);
+            this.timeManager.markLastUpdate();
+        });
+
 
         // Gestion de la fermeture de page
         window.addEventListener('beforeunload', () => {

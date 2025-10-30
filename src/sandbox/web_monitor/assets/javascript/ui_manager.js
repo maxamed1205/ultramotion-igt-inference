@@ -123,23 +123,26 @@ class UIManager {
      * Met à jour la barre de latence colorée
      */
     updateLatencyBar(data) {
-        const rxGpu = data.rx_to_gpu || 0;
-        const gpuProc = data.gpu_to_proc || 0;
-        const procCpu = data.proc_to_cpu || 0;
-        const cpuTx = data.cpu_to_tx || 0;
-        const total = rxGpu + gpuProc + procCpu + cpuTx;
+        const rxCpu = data.rx_cpu || 0;
+        const cpuGpu = data.cpu_gpu || 0;
+        const procGpu = data.proc_gpu || 0;
+        const gpuCpu = data.gpu_cpu || 0;
+        const cpuTx = data.cpu_tx || 0;
+        const total = rxCpu + cpuGpu + procGpu + gpuCpu + cpuTx;
 
         if (total > 0) {
             // Calcul des pourcentages
-            const rxGpuPercent = (rxGpu / total) * 100;
-            const gpuProcPercent = (gpuProc / total) * 100;
-            const procCpuPercent = (procCpu / total) * 100;
+            const rxCpuPercent = (rxCpu / total) * 100;
+            const cpuGpuPercent = (cpuGpu / total) * 100;
+            const procGpuPercent = (procGpu / total) * 100;
+            const gpuCpuPercent = (gpuCpu / total) * 100;
             const cpuTxPercent = (cpuTx / total) * 100;
 
             // Mise à jour des segments
-            this.updateSegment('segment-rx-gpu', rxGpuPercent, `RX→GPU: ${rxGpu.toFixed(1)}ms`);
-            this.updateSegment('segment-gpu-proc', gpuProcPercent, `GPU→PROC: ${gpuProc.toFixed(1)}ms`);
-            this.updateSegment('segment-proc-cpu', procCpuPercent, `PROC→CPU: ${procCpu.toFixed(1)}ms`);
+            this.updateSegment('segment-rx-cpu', rxCpuPercent, `RX→CPU: ${rxCpu.toFixed(1)}ms`);
+            this.updateSegment('segment-cpu-gpu', cpuGpuPercent, `CPU→GPU: ${cpuGpu.toFixed(1)}ms`);
+            this.updateSegment('segment-proc-gpu', procGpuPercent, `PROC(GPU): ${procGpu.toFixed(1)}ms`);
+            this.updateSegment('segment-gpu-cpu', gpuCpuPercent, `GPU→CPU: ${gpuCpu.toFixed(1)}ms`);
             this.updateSegment('segment-cpu-tx', cpuTxPercent, `CPU→TX: ${cpuTx.toFixed(1)}ms`);
 
             // Animation de mise à jour
@@ -360,6 +363,140 @@ class UIManager {
             this.updateElement(id, '0 s');
         });
     }
+
+    /**
+     * Met à jour les métriques système globales (overview + GPU)
+     * Appelée à chaque message `system_metrics` reçu depuis le backend.
+     */
+    updateSystemMetrics(data) {
+        if (!data) return;
+
+        // ===========================
+        //  🧩 GPU - Utilisation
+        // ===========================
+        if (data.gpu) {
+            const gpu = data.gpu;
+
+            // Utilisation principale (%)
+            if (gpu.usage !== undefined) {
+                this.updateElement('overview-gpu-util', `${gpu.usage.toFixed(1)}%`);
+                this.updateElement('gpu-util', Math.round(gpu.usage));
+                this.animateGPUUtilization(gpu.usage);
+            }
+
+            // Température
+            if (gpu.temp !== undefined) {
+                this.updateElement('gpu-temperature', `${gpu.temp.toFixed(1)}°C`);
+            }
+
+            // Mémoire VRAM (utilisée)
+            if (gpu.vram_used !== undefined) {
+                this.updateElement('gpu-memory-usage', `${gpu.vram_used.toFixed(0)} MB`);
+            }
+
+            // Streams actifs
+            if (gpu.streams !== undefined) {
+                this.updateElement('gpu-streams', gpu.streams);
+                this.updateElement('sidebar-gpu-streams', gpu.streams);
+            }
+
+            // Nom du device
+            if (gpu.device) {
+                this.updateElement('gpu-device', gpu.device);
+                this.updateElement('sidebar-gpu-device', gpu.device);
+            }
+
+            // Driver
+            if (gpu.driver) {
+                this.updateElement('gpu-driver', gpu.driver);
+                this.updateElement('sidebar-gpu-driver', gpu.driver);
+            }
+        }
+
+        // ===========================
+        //  ⚙️ CPU / FPS / Pipeline
+        // ===========================
+        if (data.fps) {
+            const fps = data.fps;
+            // Latence moyenne (proc)
+            if (fps.proc !== undefined) {
+                this.updateElement('overview-latency', `${fps.proc.toFixed(1)} ms`);
+            }
+        }
+
+        if (data.cpu) {
+            // on pourrait ajouter des updates CPU ici plus tard
+        }
+
+        // ===========================
+        //  🧱 Queues / Latence globale
+        // ===========================
+        if (data.queue) {
+            const q = data.queue;
+            this.updateElement('overview-queue', q.total || 0);
+        }
+
+        // ===========================
+        //  🔄 Latences Inter-étapes (Pipeline GPU-Résident)
+        // ===========================
+        if (data.interstage) {
+            const interstage = data.interstage;
+            
+            // RX → CPU
+            if (interstage.rx_cpu !== undefined) {
+                this.updateElement('lat-rx-cpu', `${interstage.rx_cpu.toFixed(1)} ms`);
+            }
+            
+            // CPU → GPU
+            if (interstage.cpu_gpu !== undefined) {
+                this.updateElement('lat-cpu-gpu', `${interstage.cpu_gpu.toFixed(1)} ms`);
+            }
+            
+            // PROC(GPU)
+            if (interstage.proc_gpu !== undefined) {
+                this.updateElement('lat-proc-gpu', `${interstage.proc_gpu.toFixed(1)} ms`);
+            }
+            
+            // GPU → CPU
+            if (interstage.gpu_cpu !== undefined) {
+                this.updateElement('lat-gpu-cpu', `${interstage.gpu_cpu.toFixed(1)} ms`);
+            }
+            
+            // CPU → TX
+            if (interstage.cpu_tx !== undefined) {
+                this.updateElement('lat-cpu-tx', `${interstage.cpu_tx.toFixed(1)} ms`);
+            }
+            
+            // Total RX→TX
+            if (interstage.total !== undefined) {
+                this.updateElement('interstage-total', `${interstage.total.toFixed(1)} ms`);
+            }
+            
+            // Frame number
+            if (interstage.frame_id !== undefined) {
+                this.updateElement('interstage-frame-id', interstage.frame_id);
+            }
+
+            // Mise à jour de la barre de latence colorée
+            this.updateLatencyBar(interstage);
+        }
+
+        // ===========================
+        //  ❤️ Santé système
+        // ===========================
+        if (data.status) {
+            this.updateSystemHealth({ status: data.status });
+        }
+
+        // ===========================
+        //  ⏱️ Dernière mise à jour
+        // ===========================
+        this.markLastUpdate();
+    }
+
+
+
+
 }
 
 // Export pour utilisation globale

@@ -12,29 +12,30 @@
 
 class WebSocketManager {
     constructor(config = {}) {
+        const base = config.url || 'ws://localhost:8050/ws/v1/pipeline'; // ✅ endpoint correct
         this.config = {
-            url: config.url || 'ws://localhost:8050/ws',
+            url: base,
             reconnectInterval: config.reconnectInterval || 5000,
             maxReconnectAttempts: config.maxReconnectAttempts || 10,
             ...config
         };
-        
+
         this.ws = null;
         this.reconnectTimer = null;
         this.reconnectAttempts = 0;
         this.isConnected = false;
         this.listeners = new Map();
-        
-        // Bind methods
+
+        // ✅ Bind methods (bien à l’intérieur du constructeur)
         this.connect = this.connect.bind(this);
         this.disconnect = this.disconnect.bind(this);
         this.handleMessage = this.handleMessage.bind(this);
     }
 
-    /**
-     * Établit la connexion WebSocket
-     */
-    connect() {
+/**
+ * Établit la connexion WebSocket
+ */
+connect() {
         try {
             console.log(`🔌 Tentative de connexion WebSocket: ${this.config.url}`);
             this.ws = new WebSocket(this.config.url);

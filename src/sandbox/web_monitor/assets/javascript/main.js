@@ -12,7 +12,22 @@ class UltraMotionApp {
         this.globalConfig = this.loadGlobalConfig();
         
         console.log(` UltraMotion IGT Application - Page: ${this.currentPage}`);
+        
+        // -- WebSocket global ----------------------------------------------------
+        this.wsManager = new WebSocketManager({
+            url: 'ws://localhost:8050/ws/v1/pipeline',  // ✅ endpoint correct
+            reconnectInterval: 5000,
+            maxReconnectAttempts: 10
+        });
+
+        // Suivi du statut de connexion
+        this.wsManager.on("connection_status", (s) => {
+            console.log(`🌐 WS status: ${s.status}`);
+        });
+
+         // -- Lancer init asynchrone après WebSocket -----------------------
         this.init();
+
     }
 
     detectCurrentPage() {
@@ -34,7 +49,7 @@ class UltraMotionApp {
     loadGlobalConfig() {
         return {
             websocket: {
-                url: 'ws://localhost:8050/ws',
+                url: 'ws://localhost:8050/ws/v1/pipeline', 
                 reconnectInterval: 5000,
                 maxReconnectAttempts: 10
             },

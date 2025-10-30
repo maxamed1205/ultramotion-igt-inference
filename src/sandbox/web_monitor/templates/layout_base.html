@@ -75,11 +75,12 @@
     </footer>
 
     <!-- Core JavaScript -->
-    <script src="/javascript/ws_manager.js"></script>
-    <script src="/javascript/ui_manager.js"></script>
-    <script src="/javascript/time_manager.js"></script>
-    <script src="/javascript/main.js"></script>
-    
+    <!-- ⚙️ Ordre des modules : WebSocket → UI → Time → Dashboard → Main -->
+    <script src="{{ url_for('assets', path='javascript/ws_manager.js') }}"></script>
+    <script src="{{ url_for('assets', path='javascript/ui_manager.js') }}"></script>
+    <script src="{{ url_for('assets', path='javascript/time_manager.js') }}"></script>
+    <script src="{{ url_for('assets', path='javascript/main.js') }}"></script>
+
     <!-- Navigation active script -->
     <script>
         // Marque le lien de navigation actuel
