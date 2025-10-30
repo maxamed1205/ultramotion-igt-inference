@@ -303,11 +303,11 @@
   }
 }
 
-@media (max-width: 1400px) {
+/* @media (max-width: 1400px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   }
-}
+} */
 
 @media (max-width: 1024px) {
   .gpu-utilization {

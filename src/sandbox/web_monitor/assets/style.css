@@ -288,6 +288,16 @@ body {
   padding: var(--spacing-xl);
   overflow-y: auto;
   max-width: calc(100vw - var(--sidebar-width));
+  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  contain: layout;
+}
+
+/* S'assurer que le contenu reste dans les limites */
+.main-content > * {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .content-header {
@@ -349,43 +359,79 @@ body {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-rows: auto auto;
   gap: var(--spacing-xl);
   max-width: var(--max-width);
+  width: 100%;
+  margin: 0 auto;
   grid-template-areas: 
     "pipeline performance utilization"
     "reference trends queues";
+  position: relative;
+  contain: layout;
+  overflow: hidden; /* Empêcher le débordement */
+}
+
+/* Assurer que tous les enfants directs respectent la grille */
+.metrics-grid > * {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* S'assurer que rien ne sort de la grille */
+.metrics-grid::after {
+  content: '';
+  display: block;
+  clear: both;
 }
 
 /* Placement spécifique des cartes principales */
 .card-primary {
   grid-area: pipeline;
   min-height: 320px;
+  contain: layout style paint;
 }
 
 .card-secondary {
   grid-area: performance;
   min-height: 280px;
+  contain: layout style paint;
 }
 
 .card-accent {
   grid-area: utilization;
   min-height: 280px;
+  contain: layout style paint;
 }
 
-.card-info {
+.card-info, .card-warning {
   grid-area: reference;
   min-height: 280px;
+  contain: layout style paint;
 }
 
-.card-trends {
+.card-success {
   grid-area: trends;
   min-height: 280px;
+  contain: layout style paint;
 }
 
-.card-warning {
+.card-danger {
   grid-area: queues;
   min-height: 280px;
+  contain: layout style paint;
+}
+
+/* Règle de sécurité - forcer les cartes dans leurs zones */
+.metrics-grid .card {
+  max-width: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 
 /* Optimisation pour grands écrans */
@@ -436,11 +482,29 @@ body {
   min-height: 250px;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  contain: layout style paint;
 }
 
 .card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
+}
+
+/* Empêcher tout contenu de sortir des cartes */
+.card > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.card-content {
+  overflow: hidden;
+  max-width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-header {
@@ -513,6 +577,22 @@ body {
 
 .card-info .card-header {
   background: var(--info-bg);
+}
+
+.card-success {
+  border-color: var(--success-border);
+}
+
+.card-success .card-header {
+  background: var(--success-bg);
+}
+
+.card-danger {
+  border-color: var(--danger-border);
+}
+
+.card-danger .card-header {
+  background: var(--danger-bg);
 }
 
 /* ==================== PIPELINE FLOW ==================== */

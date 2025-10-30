@@ -1,47 +1,43 @@
-<!-- GPU Utilization Card Component -->
+<!-- GPU Hardware Utilization Card Component -->
 <div class="card card-accent">
     <div class="card-header">
-        <h3><i class="fas fa-chart-pie"></i> Utilisation GPU</h3>
-        <div class="card-subtitle">Monitoring en temps réel</div>
+        <h3><i class="fas fa-microchip"></i> Utilisation GPU</h3>
+        <div class="card-subtitle">Matériel GPU — Capacité & Charge Totale</div>
     </div>
     <div class="card-content">
-        <div class="gpu-utilization">
+        <div class="gpu-hardware-overview">
             <div class="gpu-util-circle-container">
                 <svg class="gpu-util-svg" viewBox="0 0 36 36">
                     <path class="gpu-util-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
                     <path id="gpu-util-circle" class="gpu-util-fg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
                 </svg>
                 <div class="gpu-util-text">
-                    <span id="gpu-util" class="gpu-util-value">0</span>
+                    <span id="gpu-util" class="gpu-util-value">73</span>
                     <span class="gpu-util-symbol">%</span>
                 </div>
             </div>
-        </div>
-        
-        <div class="gpu-details">
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Device</span>
-                <span id="gpu-device" class="gpu-detail-value">--</span>
-            </div>
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Driver / CUDA</span>
-                <span id="gpu-driver" class="gpu-detail-value">--</span>
-            </div>
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Streams actifs</span>
-                <span id="gpu-streams" class="gpu-detail-value">--</span>
-            </div>
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Mémoire utilisée</span>
-                <span id="gpu-memory" class="gpu-detail-value">-- MB</span>
-            </div>
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Mémoire réservée</span>
-                <span id="gpu-memory-reserved" class="gpu-detail-value">-- MB</span>
-            </div>
-            <div class="gpu-detail-row">
-                <span class="gpu-detail-label">Dernière MAJ</span>
-                <span id="gpu-last-update" class="gpu-detail-value">-- s</span>
+            
+            <div class="gpu-hardware-metrics">
+                <div class="hw-metric">
+                    <span class="hw-metric-label">VRAM utilisée</span>
+                    <span id="gpu-memory-usage" class="hw-metric-value">1456 MB / 2048 MB</span>
+                </div>
+                <div class="hw-metric">
+                    <span class="hw-metric-label">Streams actifs</span>
+                    <span id="gpu-streams" class="hw-metric-value">4</span>
+                </div>
+                <div class="hw-metric">
+                    <span class="hw-metric-label">Température</span>
+                    <span id="gpu-temperature" class="hw-metric-value">55°C</span>
+                </div>
+                <div class="hw-metric">
+                    <span class="hw-metric-label">Device</span>
+                    <span id="gpu-device" class="hw-metric-value">NVIDIA RTX 4080</span>
+                </div>
+                <div class="hw-metric">
+                    <span class="hw-metric-label">Driver / CUDA</span>
+                    <span id="gpu-driver" class="hw-metric-value">535.98 / CUDA 12.2</span>
+                </div>
             </div>
         </div>
     </div>
