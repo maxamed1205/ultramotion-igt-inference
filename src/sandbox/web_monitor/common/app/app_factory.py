@@ -129,25 +129,29 @@ def create_app(cfg):
         # 2️⃣ Valeurs par défaut si non précisées
         if not pipeline_path or not kpi_path:
             log.warning("[APP] Chemins collector non définis — utilisation des logs réels du pipeline")
-
-            # Remonte de 4 niveaux pour atteindre la racine du projet
-            default_dir = Path(__file__).resolve().parents[4] / "logs"
-
+            default_dir = Path(__file__).resolve().parents[5] / "logs"
             pipeline_path = str(default_dir / "pipeline.log")
             kpi_path = str(default_dir / "kpi.log")
 
-            # 🔍 Ajout de logs et prints explicites pour vérification
             log.info(f"[APP] 🔍 Dossier racine logs détecté : {default_dir}")
             log.info(f"[APP] 🔗 pipeline.log  => {pipeline_path}")
             log.info(f"[APP] 🔗 kpi.log       => {kpi_path}")
 
-        # 3️⃣ Instanciation du collector réel
+        # 3️⃣ Vérification existence réelle des fichiers
+        if not Path(pipeline_path).exists() or not Path(kpi_path).exists():
+            raise FileNotFoundError(
+                f"Un ou plusieurs fichiers de logs sont introuvables :\n"
+                f"  - pipeline.log : {pipeline_path}\n"
+                f"  - kpi.log      : {kpi_path}"
+            )
+
+        # 4️⃣ Instanciation du collector réel
         app.state.collector = Collector(pipeline_path=pipeline_path, kpi_path=kpi_path)
         app.state.collector.start()
         log.info(f"[APP] Collector réel attaché ✅ ({pipeline_path}, {kpi_path})")
 
     except Exception as e:
-        # Fallback simulé si le collector échoue
+        # ⚠️ Fallback simulé si le collector échoue
         log.warning(f"[APP] Collector réel indisponible ({e}); utilisation du mock ⚠️")
         tmp1 = tempfile.NamedTemporaryFile(delete=False).name
         tmp2 = tempfile.NamedTemporaryFile(delete=False).name
