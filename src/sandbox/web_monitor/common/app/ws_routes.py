@@ -151,10 +151,14 @@ def register_ws_routes(app):
                         log.debug(f"[WS] ✅ Données collector récupérées (frame_id={data.get('frame_id', '?')})")
 
                     # Envoi au client
-                    await websocket.send_text(json.dumps({
-                        "type": "system_metrics",
-                        "data": data or {},
-                    }))
+                    try:
+                        await websocket.send_text(json.dumps({
+                            "type": "system_metrics",
+                            "data": data or {},
+                        }))
+                    except Exception as send_err:
+                        log.warning(f"[WS] ⚠️ Connexion WebSocket fermée pendant l’envoi : {send_err}")
+                        break  # on quitte la boucle proprement
 
                     # ⏱️ Pause 1s (ou jusqu’à shutdown)
                     done, _ = await asyncio.wait(
