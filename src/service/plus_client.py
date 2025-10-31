@@ -58,9 +58,16 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
     # Boucle principale de réception (tourne en continu tant que le thread n’est pas arrêté)
     while not stop_event.is_set():  # continue tant que le signal d’arrêt global n’a pas été activé
         start = time.time()  # enregistre l’heure de début du cycle (utile pour le calcul de FPS ou latence)
+
+                
+        if stop_event.is_set(): # Si l'arrêt a été demandé, on quitte proprement la boucle
+            print("[SIMULATION] Arrêt demandé, sortie de la boucle principale")
+            break
+
         try:
-            print("[SIMULATION] Génération d'une frame simulée") 
+            # print("[SIMULATION] Génération d'une frame simulée") 
             if pyigtl:  # si la bibliothèque pyigtl est disponible → mode réel (connexion à PlusServer)
+                print("[REAL] Tentative de réception d'un message IGTLink depuis PlusServer")
                 try:
                     msg = client.receive(timeout=0.1)  # tente de recevoir un message IGTLink (attente max 100 ms)
                 except Exception:
@@ -92,6 +99,7 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
             else:  # sinon → mode simulation (aucune connexion réelle, on génère des images synthétiques)
                  # message de debug pour indiquer le mode simulation
                 # time.sleep(0.04)  # attend environ 40 ms → simule une fréquence de 25 FPS
+                print("[SIMULATION] Chargement des images depuis le dossier pour simulation")
                 DATASET_PATH = Path(r"C:\Users\maxam\Desktop\TM\ultramotion-igt-inference\Video_001")
                 # Charger la liste des fichiers image
                 image_files = sorted(glob(str(DATASET_PATH / "*.jpg")))  # Récupère tous les fichiers JPG dans le dossier

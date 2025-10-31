@@ -1,7 +1,7 @@
 # Configuration réseau pour IGTGateway
-plus_host: "127.0.0.1"
-plus_port: 18944
-slicer_port: 18945
+plus_host: "localhost"
+plus_port: 8050 # 18944
+slicer_port: 8051 # 18945
 
 # Paramètres de performance
 target_fps: 25.0
