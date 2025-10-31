@@ -137,27 +137,25 @@ def register_ws_routes(app):
         shutdown_task = asyncio.create_task(stop_event.wait())
 
         try:
-            while (
-                websocket in connected_clients
-                and not stop_event.is_set()
-                and websocket.application_state.name.lower() == "connected"
-            ):
+            while ( websocket in connected_clients and not stop_event.is_set() and websocket.application_state.name.lower() == "connected"):
                 try:
-                    data = collector.get_latest()
-
-                    if not data:
-                        log.debug("[WS] ⚠️ Aucune donnée disponible dans le LogCollector pour l’instant.")
+                    frame = collector.get_latest()
+                    if frame:
+                        frame_id = getattr(frame, 'frame_id', '?')
+                        log.debug(f"[WS] ✅ Données collector récupérées (frame_id={frame_id})")
+                        serialized_data = serialize_frame(frame)
                     else:
-                        log.debug(f"[WS] ✅ Données collector récupérées (frame_id={data.get('frame_id', '?')})")
+                        # Pas de nouvelle donnée — on envoie un "heartbeat" minimal
+                        log.debug("[WS] ⏳ Aucun nouveau frame (heartbeat envoyé)")
 
                     # Envoi au client
                     try:
                         await websocket.send_text(json.dumps({
                             "type": "system_metrics",
-                            "data": data or {},
+                            "data": serialized_data,
                         }))
                     except Exception as send_err:
-                        log.warning(f"[WS] ⚠️ Connexion WebSocket fermée pendant l’envoi : {send_err}")
+                        log.warning(f"[WS] ⚠️ Connexion WebSocket fermée pendant l'envoi : {send_err}")
                         break  # on quitte la boucle proprement
 
                     # ⏱️ Pause 1s (ou jusqu’à shutdown)

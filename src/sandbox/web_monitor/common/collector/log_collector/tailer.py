@@ -19,26 +19,40 @@ class FileTailer(threading.Thread):
         self.filepath = filepath
         self.queue = queue
         self.poll_interval = poll_interval
-        self.running = threading.Event()  # ✅ remplace bool → plus sûr (thread-safe)
+        self.running = threading.Event()  # ✅ thread-safe flag
+        self.line_count = 0               # compteur de lignes lues
 
     def run(self):
         self.running.set()
-        logger.info(f"[Tailer] Démarrage du tailer pour {os.path.basename(self.filepath)}")
+        logger.info(f"[Tailer] 🚀 Démarrage du tailer pour {os.path.basename(self.filepath)}")
+
         try:
             with open(self.filepath, "r", encoding="utf-8", errors="ignore") as f:
-                f.seek(0, os.SEEK_END)  # Aller à la fin du fichier
+                # 🟢 LIRE DÈS LE DÉBUT (mode replay + live continu)
+                logger.debug(f"[Tailer] Lecture initiale complète de {self.filepath}")
+                for line in f:
+                    self.queue.put(line)
+
+                # ➕ Ensuite, on passe en mode “tail -f”
+                f.seek(0, os.SEEK_END)
+                logger.debug(f"[Tailer] Position initiale fin de fichier ({f.tell()} octets)")
+
+                # 🔁 Lecture continue
                 while self.running.is_set():
                     line = f.readline()
                     if line:
                         self.queue.put(line)
                     else:
                         time.sleep(self.poll_interval)
+
         except FileNotFoundError:
-            logger.warning(f"[Tailer] Fichier introuvable: {self.filepath}")
+            logger.warning(f"[Tailer] ⚠️ Fichier introuvable: {self.filepath}")
+
         except Exception as e:
-            logger.error(f"[Tailer] Erreur sur {self.filepath}: {e}")
+            logger.error(f"[Tailer] 💥 Erreur sur {self.filepath}: {e}")
+
         finally:
-            logger.info(f"[Tailer] Arrêt propre du tailer {os.path.basename(self.filepath)}")
+            logger.info(f"[Tailer] 🛑 Arrêt propre du tailer {os.path.basename(self.filepath)}")
 
     def stop(self):
         """Demande l'arrêt du tailer."""

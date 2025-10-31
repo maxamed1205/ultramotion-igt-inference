@@ -65,16 +65,28 @@ class LogCollector:
         finally:
             logger.info("[Collector] Thread consumer arrêté proprement (finally)")
 
+    # ------------------------------------------------------------------ #
     def _drain_queue(self, q, source: str):
         """Vide une queue jusqu’à épuisement."""
+        drained = 0
         while not q.empty():
             try:
                 line = q.get_nowait()
             except Empty:
                 break
+
+            drained += 1
             parsed = self.parser.parse_line(line, source)
+
             if parsed:
+                logger.debug(f"[Collector] {source}: parsed frame_id={parsed.get('frame_id')} event={parsed.get('event')}")
                 self.aggregator.update(parsed)
+            else:
+                logger.debug(f"[Collector] {source}: ligne ignorée (non parsable)")
+
+        if drained > 0:
+            logger.debug(f"[Collector] {source}: {drained} lignes traitées dans cette itération.")
+
 
     # ------------------------------------------------------------------ #
     def stop(self, timeout: float = 2.0):
@@ -122,7 +134,13 @@ class LogCollector:
 
     def get_latest(self):
         """Retourne la dernière frame agrégée."""
-        return self.aggregator.get_latest()
+        latest = self.aggregator.get_latest()
+        if latest:
+            logger.debug(f"[Collector] get_latest() → frame#{latest.frame_id} total={getattr(latest.interstage, 'total', None)}ms")
+        else:
+            logger.debug("[Collector] get_latest() → None (aucune frame complète encore disponible)")
+        return latest
+
 
     def get_history(self, n=100):
         """Retourne l’historique récent."""
