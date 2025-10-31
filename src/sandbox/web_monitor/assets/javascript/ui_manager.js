@@ -232,23 +232,23 @@ class UIManager {
             
             if (el) {
                 const w = Math.max(pct, 1.5); // min 1.5% visible
-                console.log(`📊 [DEBUG] Définition largeur ${id}: ${w}%`);
+                // console.log(`📊 [DEBUG] Définition largeur ${id}: ${w}%`);
                 el.style.width = `${w}%`;
                 el.title = tooltip;
                 el.style.flexGrow = 0; // évite les déformations
                 
                 // Debug des styles appliqués
                 const computedStyles = getComputedStyle(el);
-                console.log(`📊 [DEBUG] Styles finaux ${id}:`, {
-                    width: el.style.width,
-                    display: computedStyles.display,
-                    background: computedStyles.background,
-                    backgroundColor: computedStyles.backgroundColor,
-                    visibility: computedStyles.visibility,
-                    borderColor: computedStyles.borderColor
-                });
+                // console.log(`📊 [DEBUG] Styles finaux ${id}:`, {
+                //     width: el.style.width,
+                //     display: computedStyles.display,
+                //     background: computedStyles.background,
+                //     backgroundColor: computedStyles.backgroundColor,
+                //     visibility: computedStyles.visibility,
+                //     borderColor: computedStyles.borderColor
+                // });
             } else {
-                console.error(`❌ [DEBUG] Élément ${id} non trouvé dans le DOM!`);
+                // console.error(`❌ [DEBUG] Élément ${id} non trouvé dans le DOM!`);
             }
         });
 
@@ -257,7 +257,7 @@ class UIManager {
         if (latencyBar) {
             latencyBar.classList.add('updating');
             setTimeout(() => latencyBar.classList.remove('updating'), 800);
-            console.log('📊 [DEBUG] Animation de rafraîchissement ajoutée');
+            // console.log('📊 [DEBUG] Animation de rafraîchissement ajoutée');
         } else {
             console.error('❌ [DEBUG] Barre de latence non trouvée!');
         }

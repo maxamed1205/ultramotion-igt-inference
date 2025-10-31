@@ -103,7 +103,7 @@ class DashboardModule {
 
         // Ajout du listener manquant
         this.wsManager.on('system_metrics', (data) => {
-            console.log('🎯 [DEBUG] Événement system_metrics reçu dans dashboard:', data);
+            // console.log('🎯 [DEBUG] Événement system_metrics reçu dans dashboard:', data);
             this.uiManager.updateSystemMetrics(data);
             this.timeManager.markLastUpdate();
         });

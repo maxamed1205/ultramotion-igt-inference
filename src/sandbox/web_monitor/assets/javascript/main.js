@@ -118,7 +118,7 @@ class UltraMotionApp {
             timestamp: new Date().toISOString()
         };
         
-        console.log(' Debug Info:', debugInfo);
+        // console.log(' Debug Info:', debugInfo);
     }
 
     getState() {
