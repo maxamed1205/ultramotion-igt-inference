@@ -9,6 +9,8 @@ from core.monitoring.async_logging import start_health_monitor, is_listener_aliv
 from service.gateway.config import GatewayConfig
 from service.igthelper import IGTGateway
 from core.monitoring.monitor import start_monitor_thread
+import signal
+import threading
 
 LOG_CFG = os.path.join(os.path.dirname(__file__), "config", "logging.yaml")
 LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
@@ -29,9 +31,6 @@ if "handlers" in cfg and "console" in cfg["handlers"]:
         cfg["handlers"]["console"]["level"] = "WARNING"
 
 logging.config.dictConfig(cfg)
-
-
-# Startup diagnostic will be logged after async selection below (so ASYNC_LOG value is available)
 
 # Optionally enable async logging via environment variable ASYNC_LOG=1
 async_enabled = os.environ.get("ASYNC_LOG", "0") in ("1", "true", "on")
@@ -57,14 +56,19 @@ if async_enabled:
         listener = None
 else:
     logging.getLogger("igt.service").info(f"Async logging disabled; LOG_MODE={log_mode} ASYNC_LOG=off")
-# optional startup message
-logging.getLogger("igt.service").info("Logging initialized successfully.")
-# Startup diagnostic: print selected modes (now that async_enabled is known)
-kpi_logging = os.environ.get("KPI_LOGGING", "1") not in ("0", "false", "False")
-console_level = cfg.get("handlers", {}).get("console", {}).get("level", "WARNING")
-logging.getLogger("igt.service").info(f"Startup config: LOG_MODE={log_mode} console.level={console_level} ASYNC_LOG={'on' if async_enabled else 'off'} KPI_LOGGING={'on' if kpi_logging else 'off'}")
 
-# minimal entrypoint: import the service module or start components
+logging.getLogger("igt.service").info("Logging initialized successfully.")
+
+# Create a global stop event
+stop_event = threading.Event()
+
+# Set up signal handler for graceful shutdown (e.g., Ctrl+C)
+def shutdown_handler(signum, frame):
+    """Handle shutdown signal gracefully"""
+    logging.getLogger("igt.service").info("Shutdown requested")
+    stop_event.set()  # Set the event to stop the main loop
+
+# Main entry point
 if __name__ == "__main__":
     logging.getLogger("igt.service").info("Ultramotion IGT Inference service (logging configured)")
     try:
@@ -75,43 +79,26 @@ if __name__ == "__main__":
         except Exception:
             logging.getLogger("igt.service").exception("Failed to load gateway config; using defaults")
             gw_cfg = GatewayConfig(plus_host="127.0.0.1", plus_port=18944, slicer_port=18945)
-
+        
         gw = IGTGateway(gw_cfg)
         gw.start()
+        # print("Running... Press Ctrl+C to stop.")
+        start_monitor_thread({"interval_sec": 2.0, "gateway": gw})  # start the global monitor thread and pass gateway for metrics collection
+        
+        # Set up signal handler for graceful shutdown (e.g., Ctrl+C)
+        signal.signal(signal.SIGINT, shutdown_handler)
 
-        # start the global monitor thread and pass gateway for metrics collection
-        start_monitor_thread({"interval_sec": 2.0, "gateway": gw})
-        # keep running until KeyboardInterrupt
+        # Main loop to wait for shutdown signal (Windows-compatible)
         try:
-            while True:
-                time.sleep(1.0)
+            while not stop_event.is_set():
+                stop_event.wait(timeout=0.1)  # Short timeout to allow KeyboardInterrupt
         except KeyboardInterrupt:
-            logging.getLogger("igt.service").info("Shutdown requested")
+            stop_event.set()
+        
+        logging.getLogger("igt.service").info("Service stopped.")
+
+    except Exception as e:
+        logging.getLogger("igt.service").exception(f"Unexpected error: {e}")
     finally:
-        try:
-            if listener:
-                # listener is a QueueListener object
-                listener.stop()
-                # attempt to join listener thread if accessible to ensure flush
-                try:
-                    th = getattr(listener, "thread", None) or getattr(listener, "_thread", None)
-                    if th is not None:
-                        th.join(timeout=2.0)
-                except Exception:
-                    pass
-                # attempt to close underlying handlers cleanly
-                try:
-                    for h in getattr(listener, 'handlers', []):
-                        try:
-                            h.close()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            try:
-                sys.stdout.flush()
-                sys.stderr.flush()
-            except Exception:
-                pass
-        except Exception:
-            logging.getLogger("igt.service").exception("Failed to stop log listener")
+        if listener:
+            listener.stop()  # Ensure the listener stops cleanly

@@ -135,36 +135,6 @@ loggers:
     handlers: [console]
     propagate: no
 
-  igt.mock.gpu:
-    level: INFO
-    handlers: [console]
-    propagate: no
-
-  igt.mock.rx:  # dataset_reader.py
-    level: DEBUG
-    handlers: [console]
-    propagate: no
-
-  igt.mock.proc:  # proc_simulator.py
-    level: DEBUG
-    handlers: [console]
-    propagate: no
-
-  igt.mock.tx:  # tx_server.py
-    level: DEBUG
-    handlers: [console]
-    propagate: no
-
-  igt.mock.runner:  # runner.py
-    level: INFO
-    handlers: [console]
-    propagate: no
-
-  igt.mock.monitor:  # state_monitor.py
-    level: INFO
-    handlers: [console]
-    propagate: no
-
 # ─────────────────────────────────────────────────────────────
 # LOGGER RACINE
 # ─────────────────────────────────────────────────────────────

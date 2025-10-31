@@ -8,15 +8,26 @@ Utilitaires pour la gestion des logs dans le simulateur Gateway :
 
 import logging
 import yaml
+
 from pathlib import Path
 from core.monitoring import async_logging  # système interne de logs asynchrones
+from sandbox.web_monitor.common.utils.mock_gateway_runner.filters import MockProcFilter, MockTxFilter, MockGpuFilter
 
 # ──────────────────────────────────────────────
 #  Constantes globales
 # ──────────────────────────────────────────────
 # On est dans src/sandbox/web_monitor/common/utils/mock_gateway_runner/
 # → remonter 3 niveaux pour atteindre src/
-ROOT = Path(__file__).resolve().parents[5]
+# ROOT = Path(__file__).resolve().parents[5]
+# ROOT = Path(__file__).resolve().parents[4]  # Remonte d'un niveau pour atteindre la racine du projet
+ROOT = Path(__file__).resolve().parents[6]  # Remonte de deux niveaux pour atteindre la racine du projet
+# Affiche le chemin du répertoire
+# print(f"Chemin du répertoire ROOT: {ROOT}")
+
+# import sys
+# Interrompt l'exécution
+# sys.exit("Arrêt du script après affichage du chemin.")
+
 LOG = logging.getLogger("igt.mock.log_utils")
 
 
@@ -29,6 +40,7 @@ def clean_old_logs():
     if not logs_dir.exists():
         LOG.warning(f"Dossier de logs introuvable : {logs_dir}")
         return
+    print(f"[DEBUG] Chemin du répertoire des logs: {logs_dir}")  # Ajout d'un print pour vérifier
 
     deleted_count = 0
     for log_file in logs_dir.glob("*.log"):
@@ -41,7 +53,8 @@ def clean_old_logs():
             LOG.debug(f"Erreur suppression {log_file}: {e}")
 
     if deleted_count > 0:
-        print(f"[CLEAN] {deleted_count} fichier(s) log supprimé(s)")
+        # print(f"[CLEAN] {deleted_count} fichier(s) log supprimé(s)")
+        pass
     else:
         # print("[CLEAN] Aucun log supprimé (ou fichiers verrouillés)")
         pass
@@ -51,14 +64,23 @@ def clean_old_logs():
 # ──────────────────────────────────────────────
 def setup_logging():
     """Configure le logging asynchrone avec src/config/logging.yaml."""
-    LOG_CFG = ROOT / "config" / "logging.yaml"  # ✅ correction ici
+    LOG_CFG = ROOT / "src" / "config" / "logging.yaml"  # Chemin corrigé
+    print(f"[DEBUG] Chemin du fichier YAML : {LOG_CFG}")
+
+
+
+    print("[DEBUG] Configuration du logging...")  # Ajout d'un print
+
+    # Ajouter un exit ici pour arrêter l'exécution après l'affichage du chemin
+    # import sys
+    # sys.exit()  # Cette ligne arrête le code ici
 
     if not LOG_CFG.exists():
         LOG.warning(f"[LOG] Fichier introuvable : {LOG_CFG}")
         logging.basicConfig(level=logging.INFO)
         print("⚠️ logging.yaml non trouvé — fallback console activé.")
         return
-
+    
     try:
         # Charger la configuration YAML et initialiser le logging asynchrone
         with open(LOG_CFG, "r", encoding="utf-8") as f:
@@ -66,49 +88,49 @@ def setup_logging():
             async_logging.setup_async_logging(yaml_cfg=cfg)
             async_logging.start_health_monitor()
             LOG.info("[LOG] Configuration asynchrone initialisée ✅")
+        print("[DEBUG] YAML chargé et logging asynchrone initialisé.")  # Ajout d'un print
+        # # 🔇 Suppression TOTALE de tous les StreamHandlers
+        # removed = 0
+        # for name, logger in logging.root.manager.loggerDict.items():
+        #     if isinstance(logger, logging.Logger):
+        #         for h in list(logger.handlers):
+        #             if isinstance(h, logging.StreamHandler):
+        #                 logger.removeHandler(h)
+        #                 removed += 1
+        # for h in list(logging.root.handlers):
+        #     if isinstance(h, logging.StreamHandler):
+        #         logging.root.removeHandler(h)
+        #         removed += 1
 
-        # 🔇 Suppression TOTALE de tous les StreamHandlers
-        removed = 0
-        for name, logger in logging.root.manager.loggerDict.items():
-            if isinstance(logger, logging.Logger):
-                for h in list(logger.handlers):
-                    if isinstance(h, logging.StreamHandler):
-                        logger.removeHandler(h)
-                        removed += 1
-        for h in list(logging.root.handlers):
-            if isinstance(h, logging.StreamHandler):
-                logging.root.removeHandler(h)
-                removed += 1
+        # LOG.info(f"[MOCK] Mode silencieux console activé — {removed} StreamHandler(s) supprimé(s)")
 
-        LOG.info(f"[MOCK] Mode silencieux console activé — {removed} StreamHandler(s) supprimé(s)")
+        # # 🧱 Protection : empêcher tout ajout futur de StreamHandler
+        # _original_addHandler = logging.Logger.addHandler
 
-        # 🧱 Protection : empêcher tout ajout futur de StreamHandler
-        _original_addHandler = logging.Logger.addHandler
+        # def _patched_addHandler(self, hdlr, *args, **kwargs):
+        #     if isinstance(hdlr, logging.StreamHandler):
+        #         return  # ignorer silencieusement
+        #     return _original_addHandler(self, hdlr, *args, **kwargs)
 
-        def _patched_addHandler(self, hdlr, *args, **kwargs):
-            if isinstance(hdlr, logging.StreamHandler):
-                return  # ignorer silencieusement
-            return _original_addHandler(self, hdlr, *args, **kwargs)
+        # logging.Logger.addHandler = _patched_addHandler
+        # LOG.info("[MOCK] Protection active : aucun StreamHandler ne sera recréé")
 
-        logging.Logger.addHandler = _patched_addHandler
-        LOG.info("[MOCK] Protection active : aucun StreamHandler ne sera recréé")
-
-        # 🔍 DIAGNOSTIC silencieux (écrit dans logs/_diagnostic_handlers.txt)
-        try:
-            diag_path = ROOT / "logs" / "_diagnostic_handlers.txt"
-            diag_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(diag_path, "w", encoding="utf-8") as f:
-                f.write("===== DIAGNOSTIC LOGGING (POST-CONFIG) =====\n")
-                for name, logger in logging.root.manager.loggerDict.items():
-                    if isinstance(logger, logging.Logger):
-                        for h in logger.handlers:
-                            f.write(f"[{name}] handler={type(h).__name__} level={h.level}\n")
-                for h in logging.root.handlers:
-                    f.write(f"[ROOT] handler={type(h).__name__} level={h.level}\n")
-                f.write("=============================================\n")
-            LOG.info(f"[DIAG] Rapport de loggers sauvegardé dans {diag_path}")
-        except Exception as diag_err:
-            LOG.error(f"[DIAG] Erreur diagnostic logging: {diag_err}")
+        # # 🔍 DIAGNOSTIC silencieux (écrit dans logs/_diagnostic_handlers.txt)
+        # try:
+        #     diag_path = ROOT / "logs" / "_diagnostic_handlers.txt"
+        #     diag_path.parent.mkdir(parents=True, exist_ok=True)
+        #     with open(diag_path, "w", encoding="utf-8") as f:
+        #         f.write("===== DIAGNOSTIC LOGGING (POST-CONFIG) =====\n")
+        #         for name, logger in logging.root.manager.loggerDict.items():
+        #             if isinstance(logger, logging.Logger):
+        #                 for h in logger.handlers:
+        #                     f.write(f"[{name}] handler={type(h).__name__} level={h.level}\n")
+        #         for h in logging.root.handlers:
+        #             f.write(f"[ROOT] handler={type(h).__name__} level={h.level}\n")
+        #         f.write("=============================================\n")
+        #     LOG.info(f"[DIAG] Rapport de loggers sauvegardé dans {diag_path}")
+        # except Exception as diag_err:
+        #     LOG.error(f"[DIAG] Erreur diagnostic logging: {diag_err}")
 
     except Exception as e:
         LOG.error(f"[LOG] Erreur de configuration du logging : {e}")

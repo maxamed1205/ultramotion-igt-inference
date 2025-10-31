@@ -79,14 +79,15 @@ class LogCollector:
             parsed = self.parser.parse_line(line, source)
 
             if parsed:
-                logger.debug(f"[Collector] {source}: parsed frame_id={parsed.get('frame_id')} event={parsed.get('event')}")
+                # logger.debug(f"[Collector] {source}: parsed frame_id={parsed.get('frame_id')} event={parsed.get('event')}")
                 self.aggregator.update(parsed)
             else:
-                logger.debug(f"[Collector] {source}: ligne ignorée (non parsable)")
+                # logger.debug(f"[Collector] {source}: ligne ignorée (non parsable)")
+                pass
 
         if drained > 0:
-            logger.debug(f"[Collector] {source}: {drained} lignes traitées dans cette itération.")
-
+            # logger.debug(f"[Collector] {source}: {drained} lignes traitées dans cette itération.")
+            pass
 
     # ------------------------------------------------------------------ #
     def stop(self, timeout: float = 2.0):

@@ -31,19 +31,20 @@ class FrameAggregator:
     def update(self, parsed: dict):
         """Met à jour les données agrégées à partir d'une ligne parsée."""
         if not parsed or "frame_id" not in parsed:
-            logger.debug(f"[AGG] Ligne ignorée (invalide ou sans frame_id): {parsed}")
+            # logger.debug(f"[AGG] Ligne ignorée (invalide ou sans frame_id): {parsed}")
+            pass
             return
 
         fid = int(parsed["frame_id"])
         event = parsed.get("event")
-        logger.debug(f"[AGG] ⏺ update() appelée — frame#{fid}, event='{event}'")
+        # logger.debug(f"[AGG] ⏺ update() appelée — frame#{fid}, event='{event}'")
 
         with self.lock:
             frame = self.frames.get(fid)
 
             # ─── Création initiale si nouvelle frame ───
             if frame is None:
-                logger.debug(f"[AGG] ➕ Nouvelle frame détectée #{fid} (création FrameAggregate)")
+                # logger.debug(f"[AGG] ➕ Nouvelle frame détectée #{fid} (création FrameAggregate)")
                 meta = FrameMetaLite(frame_id=fid, ts=parsed.get("ts", 0.0))
                 frame = FrameAggregate(frame_id=fid, meta=meta)
                 frame.rx = None
@@ -51,12 +52,13 @@ class FrameAggregator:
                 frame.tx = None
                 self.frames[fid] = frame
             else:
-                logger.debug(f"[AGG] 🔁 Frame existante #{fid} récupérée pour mise à jour")
+                # logger.debug(f"[AGG] 🔁 Frame existante #{fid} récupérée pour mise à jour")
+                pass
 
             # 1️⃣ RX / PROC / TX
             if event in ("rx", "proc", "tx"):
                 frame_ts = parsed.get("ts")
-                logger.debug(f"[AGG] 🧩 Événement {event} reçu pour frame#{fid} (ts={frame_ts})")
+                # logger.debug(f"[AGG] 🧩 Événement {event} reçu pour frame#{fid} (ts={frame_ts})")
 
                 if frame_ts:
                     setattr(frame, event, frame_ts)
@@ -66,20 +68,21 @@ class FrameAggregator:
                         frame.latency_rxproc = (frame.proc - frame.rx) * 1000.0
                         frame.latency_proctx = (frame.tx - frame.proc) * 1000.0
                         frame.latency_rxtx = (frame.tx - frame.rx) * 1000.0
-                        logger.debug(
-                            f"[AGG] ✅ Latences calculées pour frame#{fid} — RX→PROC={frame.latency_rxproc:.2f} ms, "
-                            f"PROC→TX={frame.latency_proctx:.2f} ms, RX→TX={frame.latency_rxtx:.2f} ms"
-                        )
+                        # logger.debug(
+                        #     f"[AGG] ✅ Latences calculées pour frame#{fid} — RX→PROC={frame.latency_rxproc:.2f} ms, "
+                        #     f"PROC→TX={frame.latency_proctx:.2f} ms, RX→TX={frame.latency_rxtx:.2f} ms"
+                        # )
                     except Exception as e:
-                        logger.debug(f"[AGG] ⚠️ Erreur calcul latences frame#{fid}: {e}")
+                        # logger.debug(f"[AGG] ⚠️ Erreur calcul latences frame#{fid}: {e}")
+                        pass
 
             # 2️⃣ GPU copy_async
             elif event == "copy_async" and "latencies" in parsed:
                 l = parsed["latencies"]
-                logger.debug(
-                    f"[AGG] 🧠 GPU transfer pour frame#{fid}: "
-                    f"norm={l.get('norm_ms')} pin={l.get('pin_ms')} copy={l.get('copy_ms')} total={l.get('cpu_gpu')}"
-                )
+                # logger.debug(
+                #     f"[AGG] 🧠 GPU transfer pour frame#{fid}: "
+                #     f"norm={l.get('norm_ms')} pin={l.get('pin_ms')} copy={l.get('copy_ms')} total={l.get('cpu_gpu')}"
+                # )
                 frame.gpu_transfer = GPUTransferLite(
                     frame_id=fid,
                     norm_ms=l.get("norm_ms", 0.0),
@@ -91,11 +94,11 @@ class FrameAggregator:
             # 3️⃣ Inter-stage latencies
             elif event == "interstage" and "latencies" in parsed:
                 lat = parsed["latencies"]
-                logger.debug(
-                    f"[AGG] 🔗 Interstage latencies pour frame#{fid}: "
-                    f"rx_cpu={lat.get('rx_cpu')} cpu_gpu={lat.get('cpu_gpu')} proc_gpu={lat.get('proc_gpu')} "
-                    f"gpu_cpu={lat.get('gpu_cpu')} cpu_tx={lat.get('cpu_tx')} total={lat.get('total')}"
-                )
+                # logger.debug(
+                #     f"[AGG] 🔗 Interstage latencies pour frame#{fid}: "
+                #     f"rx_cpu={lat.get('rx_cpu')} cpu_gpu={lat.get('cpu_gpu')} proc_gpu={lat.get('proc_gpu')} "
+                #     f"gpu_cpu={lat.get('gpu_cpu')} cpu_tx={lat.get('cpu_tx')} total={lat.get('total')}"
+                # )
                 frame.interstage = InterStageLatencyLite(
                     frame_id=fid,
                     rx_cpu=lat.get("rx_cpu"),
@@ -108,17 +111,20 @@ class FrameAggregator:
 
             # 4️⃣ Vérification de complétude
             if self._is_frame_complete(frame):
-                logger.info(f"[AGG] 🟢 Frame complète détectée #{fid} — passage à _finalize_frame()")
+                # logger.info(f"[AGG] 🟢 Frame complète détectée #{fid} — passage à _finalize_frame()")
                 self._finalize_frame(fid, frame)
+                logger.info(f"[AGG] 🟢 Frame complète détectée #{fid} — passage à _finalize_frame()")
+
             else:
-                logger.debug(
-                    f"[AGG] ⏳ Frame#{fid} encore incomplète — "
-                    f"has_rx={bool(getattr(frame, 'rx', None))} "
-                    f"has_proc={bool(getattr(frame, 'proc', None))} "
-                    f"has_tx={bool(getattr(frame, 'tx', None))} "
-                    f"has_gpu_transfer={frame.gpu_transfer is not None} "
-                    f"has_interstage={frame.interstage is not None}"
-                )
+                # logger.debug(
+                #     f"[AGG] ⏳ Frame#{fid} encore incomplète — "
+                #     f"has_rx={bool(getattr(frame, 'rx', None))} "
+                #     f"has_proc={bool(getattr(frame, 'proc', None))} "
+                #     f"has_tx={bool(getattr(frame, 'tx', None))} "
+                #     f"has_gpu_transfer={frame.gpu_transfer is not None} "
+                #     f"has_interstage={frame.interstage is not None}"
+                # )
+                pass
 
 
     # ------------------------------------------------------------------ #

@@ -83,8 +83,8 @@ def simulate_processing(
                     proc_to_gpu_cpu = gpu_to_cpu_ms # PROC(GPU) → GPU-to-CPU
                     # gpu_cpu_to_tx sera calculé automatiquement par mark_interstage_tx()
                     
-                    # 📊 Log détaillé des métriques inter-étapes (toutes les 20 frames)
-                    if frame_id % 20 == 0:
+                    # 📊 Log détaillé des métriques inter-étapes (toutes les 10 frames)
+                    if frame_id % 10 == 0:
                         total_processing = cpu_to_gpu_ms + proc_gpu_ms + gpu_to_cpu_ms
                         LOG.info(f"[PROC-SIM]  Inter-stage latencies #{frame_id:03d}:")
                         LOG.info(f"  RX → CPU-to-GPU:    {rx_to_cpu_gpu:.2f}ms")
@@ -117,7 +117,7 @@ def simulate_processing(
                 t_cpu_end = time.perf_counter()
                 cpu_proc_ms = (t_cpu_end - t_cpu_start) * 1000.0
                 
-                if frame_id % 20 == 0:
+                if frame_id % 10 == 0:
                     LOG.info(f"[PROC-SIM] CPU processing: {cpu_proc_ms:.2f}ms")
             
             # ✅ Timestamp final pour PROC→TX latency measurement

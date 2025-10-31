@@ -4,7 +4,7 @@ threads_manager.py
 Crée et démarre les threads RX / PROC / TX du simulateur.
 """
 import threading
-from sandbox.web_monitor.common.utils.mock_gateway_runner.dataset_reader import read_dataset_images
+from src.sandbox.web_monitor.common.utils.mock_gateway_runner.gateway_for_web_test import read_dataset_images
 from sandbox.web_monitor.common.utils.mock_gateway_runner.proc_simulator import simulate_processing
 from sandbox.web_monitor.common.utils.mock_gateway_runner.tx_server import run_tx_server
 

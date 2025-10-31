@@ -361,13 +361,6 @@ class IGTGateway:
             return False  # Échec global.
 
 
-    # === Helpers pour les tests et simulations ===
-    def _inject_frame(self, frame: RawFrame) -> None:  # Injecte manuellement une frame dans la mailbox (utilisé pour les tests ou simulations sans PlusServer).
-        try:
-            self._mailbox.append(frame)  # Ajoute la frame dans la file d’entrée.
-        except Exception:
-            LOG.exception("Failed to inject frame into mailbox")  # Log une erreur si l’insertion échoue.
-
     def _drain_outbox(self) -> list:  # Vide complètement la file de sortie et renvoie son contenu (utile pour inspection en test).
         items = list(self._outbox)  # Copie tous les éléments actuellement présents.
         self._outbox.clear()  # Vide la file de sortie.

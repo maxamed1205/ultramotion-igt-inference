@@ -58,7 +58,7 @@ def run_slicer_server(
     - Si tx_ready est fourni, utilise wait() pour un réveil instantané au lieu de polling.
     - Si gateway_stats est fourni, appelle mark_tx(frame_id, ts) pour calcul de latence.
     """
-    print("[DEBUG] run_slicer_server() started")
+    # print("[DEBUG] run_slicer_server() started")
     LOG.info("[TX-SIM] run_slicer_server() started — debug check")
     try:
         import pyigtl  # type: ignore

@@ -21,7 +21,7 @@ def run_tx_server(gateway, stop_event, tx_interval=0.01):
         stop_event: threading.Event signalant l’arrêt
         tx_interval: délai minimum entre envois (s)
     """
-    LOG.info("[TX] Thread TX simulé démarré")
+    # LOG.info("[TX] Thread TX simulé démarré")
     outbox = gateway._outbox
     stats = gateway.stats
     events = gateway.events

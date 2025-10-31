@@ -7,6 +7,8 @@ Renvoie un dictionnaire minimal pour agrégation.
 
 import re
 from datetime import datetime
+
+from pyparsing import line
 from . import logger
 
 
@@ -18,12 +20,18 @@ class LogParser:
         # Use case-insensitive matching for the simple frame-id patterns so
         # both "Frame #001" and "frame #001" are recognised in logs.
         self.patterns = {
-            "rx": re.compile(r"\[DATASET-RX\].*frame #(\d+)", re.I),
-            "proc": re.compile(r"\[PROC-SIM\].*frame #(\d+)", re.I),
-            "tx": re.compile(r"\[TX-SIM\].*frame #(\d+)", re.I),
+            # Événements principaux
+            "rx": re.compile(r"\[DATASET-RX\].*frame\s*#?(\d+)", re.I),
+            "proc": re.compile(r"\[PROC-SIM\].*frame\s*#?(\d+)", re.I),
+            "tx": re.compile(r"\[TX(?:-SIM)?\].*Frame\s*#?(\d+)", re.I),
+
+            # Transferts GPU (copy_async)
             "copy_async": re.compile(
-                r"event=copy_async.*norm_ms=([\d.]+).*pin_ms=([\d.]+).*copy_ms=([\d.]+).*total_ms=([\d.]+).*frame=(\d+)"
+                r"event=copy_async.*norm_ms=([\d.]+).*pin_ms=([\d.]+).*"
+                r"copy_ms=([\d.]+).*total_ms=([\d.]+).*frame=(\d+)"
             ),
+
+            # Bloc multi-lignes "Inter-stage latencies"
             "interstage": re.compile(
                 r"RX → CPU-to-GPU:\s*([\d.]+)ms.*?"
                 r"CPU-to-GPU → PROC:\s*([\d.]+)ms.*?"
@@ -31,7 +39,11 @@ class LogParser:
                 r"Total processing:\s*([\d.]+)",
                 re.S,
             ),
+
+            # En-tête du bloc Inter-stage (contient l’ID de frame)
+            "interstage_header": re.compile(r"Inter-stage latencies\s*#?(\d+)", re.I),
         }
+
 
         self.last_frame_id = None       # garde en mémoire le dernier frame_id
         self._pending_interstage = ""   # buffer multi-lignes
@@ -39,44 +51,26 @@ class LogParser:
     # ------------------------------------------------------------------ #
     def parse_line(self, line: str, source: str):
         """Dispatch principal rapide (pipeline/kpi)."""
+        parsed = None 
         line = line.strip()
         if not line:
             return None
 
-        # ─────────────────────────────
-        # 1️⃣ Détection bloc Inter-stage (multi-lignes)
-        # ─────────────────────────────
         if "Inter-stage" in line:
-            # début de bloc
             self._pending_interstage = line + "\n"
-            logger.debug("[Parser] Début bloc interstage détecté")
+
+            # 🔎 Tente de récupérer le numéro de frame dans la même ligne
+            header_match = self.patterns["interstage_header"].search(line)
+            if header_match:
+                self.last_frame_id = int(header_match.group(1))
+                logger.debug(f"[Parser] 🧩 Début bloc interstage détecté pour frame #{self.last_frame_id}")
+            else:
+                logger.debug("[Parser] 🧩 Début bloc interstage détecté (sans ID explicite)")
             return None
 
-        elif self._pending_interstage:
-            # accumulation
-            self._pending_interstage += line + "\n"
-            if "Total processing" in line:
-                # fin du bloc -> parse complet
-                parsed = self._parse_interstage(self._pending_interstage)
-                self._pending_interstage = ""
-                if parsed:
-                    logger.debug(f"[Parser] Bloc interstage complété pour frame #{parsed['frame_id']}")
-                return parsed
-            return None
+        return parsed
 
-        # ─────────────────────────────
-        # 2️⃣ Événements classiques RX/PROC/TX/copy_async
-        # ─────────────────────────────
-        if "[DATASET-RX]" in line:
-            return self._parse_event(line, "rx")
-        elif "[PROC-SIM]" in line:
-            return self._parse_event(line, "proc")
-        elif "[TX-SIM]" in line:
-            return self._parse_event(line, "tx")
-        elif "event=copy_async" in line:
-            return self._parse_copy_async(line)
 
-        return None
 
     # ------------------------------------------------------------------ #
     def _parse_event(self, line: str, tag: str):
@@ -87,7 +81,7 @@ class LogParser:
         fid = int(m.group(1))
         self.last_frame_id = fid
         ts = self._extract_ts(line)
-        logger.debug(f"[Parser] {tag.upper()} détecté frame #{fid}")
+        # logger.debug(f"[Parser] {tag.upper()} détecté frame #{fid}")
         return {"frame_id": fid, "event": tag, "ts": ts}
 
     # ------------------------------------------------------------------ #
@@ -98,7 +92,7 @@ class LogParser:
         norm_ms, pin_ms, copy_ms, total_ms, fid = m.groups()
         fid = int(fid)
         self.last_frame_id = fid
-        logger.debug(f"[Parser] copy_async détecté frame #{fid}")
+        # logger.debug(f"[Parser] copy_async détecté frame #{fid}")
         return {
             "frame_id": fid,
             "event": "copy_async",
@@ -114,10 +108,13 @@ class LogParser:
     def _parse_interstage(self, block: str):
         """Parse un bloc complet 'Inter-stage latencies' sur plusieurs lignes."""
         m = self.patterns["interstage"].search(block)
-        if not m:
-            logger.debug("[Parser] Bloc interstage non reconnu")
-            return None
+        # if not m:
+        #     logger.debug("[Parser] Bloc interstage non reconnu")
+        #     return None
         rx_cpu, cpu_gpu, proc_gpu, total = map(float, m.groups())
+
+        logger.debug(f"[Parser] 🔍 Bloc interstage détecté (RX→CPU {rx_cpu} ms, CPU→GPU {cpu_gpu} ms, PROC→GPU {proc_gpu} ms, total={total} ms)")
+
         fid = self.last_frame_id or -1  # fallback si pas d'ID détecté
         return {
             "frame_id": fid,

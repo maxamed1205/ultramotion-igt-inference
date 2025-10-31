@@ -1,73 +1,117 @@
-"""
-runner.py
-----------
-Point central du simulateur de pipeline.
-"""
-
-import threading
+import os
+import sys
+import yaml
 import logging
+import logging.config
+import time
+from core.monitoring.async_logging import setup_async_logging
+from core.monitoring.async_logging import start_health_monitor, is_listener_alive, get_log_queue
+from service.gateway.config import GatewayConfig
+from service.igthelper import IGTGateway
+from core.monitoring.monitor import start_monitor_thread
 
-from sandbox.web_monitor.common.utils.mock_gateway_runner.log_utils import clean_old_logs, setup_logging
-from sandbox.web_monitor.common.utils.mock_gateway_runner.gpu_runtime import init_gpu_if_available
-from sandbox.web_monitor.common.utils.mock_gateway_runner.threads_manager import create_threads
-from sandbox.web_monitor.common.utils.mock_gateway_runner.state_monitor import supervise_threads
-from service.gateway.manager import IGTGateway
-from core.monitoring.monitor import set_active_gateway
+LOG_CFG = os.path.join(os.path.dirname(__file__), "config", "logging.yaml")
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
 
-LOG = logging.getLogger("igt.mock.runner")
+# Créer un répertoire de logs si nécessaire (idempotent)
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# Charger la configuration de journalisation et ajuster le niveau de la console en fonction de LOG_MODE
+with open(LOG_CFG, "r", encoding="utf-8") as f:
+    cfg = yaml.safe_load(f)
 
 
-def run_mock_gateway():
-    """Orchestre le pipeline complet RX → PROC → TX."""
+# Autoriser la modification dynamique du niveau de verbosité de la console : LOG_MODE=dev -> INFO, LOG_MODE=perf -> WARNING
+log_mode = os.environ.get("LOG_MODE", "perf").lower()
+if "handlers" in cfg and "console" in cfg["handlers"]:
+    if log_mode == "dev":
+        cfg["handlers"]["console"]["level"] = "INFO"
+    else:
+        cfg["handlers"]["console"]["level"] = "WARNING"
 
-    # ──────────────────────────────────────────────
-    # Étape 1 : Nettoyage + Logging
-    # ──────────────────────────────────────────────
-    clean_old_logs()
-    setup_logging()
+logging.config.dictConfig(cfg)
 
-    # ──────────────────────────────────────────────
-    # Étape 2 : Initialisation GPU / CPU
-    # ──────────────────────────────────────────────
-    device = init_gpu_if_available()
-    use_gpu = device != "cpu"
-
-    # ──────────────────────────────────────────────
-    # Étape 3 : Timer haute résolution (Windows only)
-    # ──────────────────────────────────────────────
+# Un diagnostic de démarrage sera consigné après la sélection asynchrone ci-dessous (la valeur ASYNC_LOG est donc disponible).
+# Activez éventuellement la journalisation asynchrone via la variable d'environnement ASYNC_LOG=1
+async_enabled = os.environ.get("ASYNC_LOG", "0") in ("1", "true", "on")
+listener = None
+if async_enabled:
     try:
-        from utils.win_timer_resolution import enable_high_resolution_timer
-        enable_high_resolution_timer()
-        LOG.info("[TIMER] Haute résolution activée (1ms)")
-    except ImportError:
-        LOG.warning("[TIMER] Module win_timer_resolution non disponible — précision timer limitée.")
-    except Exception as e:
-        LOG.warning(f"[TIMER] Échec d’activation du timer haute résolution: {e}")
+        # Configurer un écouteur asynchrone qui reproduit les formateurs YAML et écrit les pipelines/KPI
+        log_queue, listener = setup_async_logging(
+            log_dir=os.path.abspath(LOG_DIR),
+            attach_to_logger="igt",
+            yaml_cfg=cfg,
+            remove_yaml_file_handlers=True,
+            replace_root=False,
+        )
+        # Démarrer le moniteur d'intégrité du sous-système asynchrone
+        try:
+            start_health_monitor(interval=5.0)
+        except Exception:
+            logging.getLogger("igt.service").debug("Failed to start async health monitor")
+        logging.getLogger("igt.service").info(f"Async logging enabled; LOG_MODE={log_mode} ASYNC_LOG=on")
+    except Exception:
+        logging.getLogger("igt.service").exception("Failed to enable async logging; falling back to YAML file handlers")
+        listener = None
+else:
+    logging.getLogger("igt.service").info(f"Async logging disabled; LOG_MODE={log_mode} ASYNC_LOG=off")
+# Message de démarrage facultatif
+logging.getLogger("igt.service").info("Logging initialized successfully.")
+# Diagnostic de démarrage : imprimer les modes sélectionnés (maintenant que async_enabled est connu)
+kpi_logging = os.environ.get("KPI_LOGGING", "1") not in ("0", "false", "False")
+console_level = cfg.get("handlers", {}).get("console", {}).get("level", "WARNING")
+logging.getLogger("igt.service").info(f"Startup config: LOG_MODE={log_mode} console.level={console_level} ASYNC_LOG={'on' if async_enabled else 'off'} KPI_LOGGING={'on' if kpi_logging else 'off'}")
 
-    # ──────────────────────────────────────────────
-    # Étape 4 : Création Gateway + Enregistrement global
-    # ──────────────────────────────────────────────
-    LOG.info(f"[MOCK] Device actif: {device}")
-    gateway = IGTGateway("127.0.0.1", 18944, 18945, target_fps=100.0)
-    gateway._running = True
-    set_active_gateway(gateway)
 
-    # ──────────────────────────────────────────────
-    # Étape 5 : Création des threads
-    # ──────────────────────────────────────────────
-    stop_event = threading.Event()
-    frame_ready = threading.Event()
-    threads = create_threads(gateway, stop_event, frame_ready, use_gpu, device)
+# Point d'entrée minimal : importer le module de service ou démarrer les composants
+if __name__ == "__main__":
+    logging.getLogger("igt.service").info("Ultramotion IGT Inference service (logging configured)")
+    try:
+        # Load gateway configuration and start the gateway
+        cfg_path = os.path.join(os.path.dirname(__file__), "config", "gateway.yaml")
+        try:
+            gw_cfg = GatewayConfig.from_yaml(cfg_path)
+        except Exception:
+            logging.getLogger("igt.service").exception("Failed to load gateway config; using defaults")
+            gw_cfg = GatewayConfig(plus_host="localhost", plus_port=8050, slicer_port=8050)
 
-    for t in threads:
-        t.start()
+        gw = IGTGateway(gw_cfg)
+        gw.start()
 
-    LOG.info("🚀 Threads RX/PROC/TX démarrés")
-    LOG.info("📊 Dashboard disponible sur http://localhost:8050 (si activé)")
-    LOG.info("=" * 80)
-
-    # ──────────────────────────────────────────────
-    # Étape 6 : Supervision et arrêt propre
-    # ──────────────────────────────────────────────
-    supervise_threads(stop_event, threads)
-    LOG.info("✅ Simulation terminée proprement.")
+        # start the global monitor thread and pass gateway for metrics collection
+        start_monitor_thread({"interval_sec": 2.0, "gateway": gw})
+        # keep running until KeyboardInterrupt
+        try:
+            while True:
+                time.sleep(1.0)
+        except KeyboardInterrupt:
+            logging.getLogger("igt.service").info("Shutdown requested")
+    finally:
+        try:
+            if listener:
+                # listener is a QueueListener object
+                listener.stop()
+                # attempt to join listener thread if accessible to ensure flush
+                try:
+                    th = getattr(listener, "thread", None) or getattr(listener, "_thread", None)
+                    if th is not None:
+                        th.join(timeout=2.0)
+                except Exception:
+                    pass
+                # attempt to close underlying handlers cleanly
+                try:
+                    for h in getattr(listener, 'handlers', []):
+                        try:
+                            h.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            except Exception:
+                pass
+        except Exception:
+            logging.getLogger("igt.service").exception("Failed to stop log listener")
