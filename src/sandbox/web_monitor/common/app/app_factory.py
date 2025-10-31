@@ -17,11 +17,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pathlib import Path
 import logging
 
-# from sandbox.web_monitor.common import app
+# Collector réel : LogCollector lit les fichiers pipeline.log et kpi.log
+from sandbox.web_monitor.common.collector.log_collector.collector import LogCollector as Collector
 
-
-
-# Import routes
+# Import des routes
 from sandbox.web_monitor.common.app.api_routes import register_api_routes
 from sandbox.web_monitor.common.app.ws_routes import register_ws_routes
 
@@ -31,17 +30,20 @@ def create_app(cfg):
     log = logging.getLogger("igt.dashboard")
 
     meta = cfg.get("dashboard", {})
-    app = FastAPI( title="Ultramotion Web Monitor", version="0.2-dev", description="Monitoring temps réel du pipeline Ultramotion",)
+    app = FastAPI(
+        title="Ultramotion Web Monitor",
+        version="0.2-dev",
+        description="Monitoring temps réel du pipeline Ultramotion",
+    )
 
+    # ------------------------------------------------------------------
+    # 🔒 Middleware de vérification du jeton HTTP (pas WebSocket)
+    # ------------------------------------------------------------------
     @app.middleware("http")
     async def verify_token(request: Request, call_next):
-        # ⚠️ Important : les middlewares HTTP ne s'appliquent PAS aux WebSockets.
-        # Donc inutile d'essayer de "return await call_next" pour elles.
-        # Ce bloc ne gérera que les requêtes HTTP normales.
         if request.scope["type"] != "http":
             return await call_next(request)
 
-        # Vérifie le jeton pour les requêtes HTTP classiques
         if meta.get("security", {}).get("enabled", False):
             expected = meta["security"].get("token")
             token = request.headers.get("X-API-Token")
@@ -51,18 +53,17 @@ def create_app(cfg):
 
         return await call_next(request)
 
-
-
-    # Middleware CORS
+    # ------------------------------------------------------------------
+    # 🌐 CORS + gestion d'erreurs globale
+    # ------------------------------------------------------------------
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # à restreindre (ex: ["http://192.168.*"])
+        allow_origins=["*"],  # à restreindre plus tard si besoin
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Gestion d’erreurs globale (pour éviter les traces brutes)
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request, exc):
         return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
@@ -71,40 +72,46 @@ def create_app(cfg):
     async def validation_exception_handler(request, exc):
         return JSONResponse({"error": "invalid request", "details": exc.errors()}, status_code=422)
 
-    # Montage statique - chemin mis à jour pour être relatif au working directory
+    # ------------------------------------------------------------------
+    # 📦 Montage des fichiers statiques
+    # ------------------------------------------------------------------
     base_dir = Path(__file__).resolve().parents[2]
     assets_path = base_dir / "assets"
     javascript_path = assets_path / "javascript"
-    
+
     app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
     app.mount("/javascript", StaticFiles(directory=str(javascript_path)), name="javascript")
 
-    app.state.cfg = cfg  # accessible immédiatement par ws_routes
+    app.state.cfg = cfg
 
-
-    # --- Attache un LogCollector simulé (pour dashboard local) ---
+    # ------------------------------------------------------------------
+    # 🧩 Collector : réel si disponible, sinon fallback simulé
+    # ------------------------------------------------------------------
     try:
-        from sandbox.web_monitor.common.collector.log_collector.collector import LogCollector
-        import tempfile
-
-        # Crée deux fichiers logs temporaires (pipeline + kpi)
-        tmp1 = tempfile.NamedTemporaryFile(delete=False).name
-        tmp2 = tempfile.NamedTemporaryFile(delete=False).name
-        app.state.collector = LogCollector(tmp1, tmp2)
-        log.info("[APP] Collector simulé attaché à app.state.collector")
+        app.state.collector = Collector()
+        log.info("[APP] Collector réel attaché à app.state.collector ✅")
     except Exception as e:
-        log.warning(f"[APP] Impossible d’attacher un collector simulé: {e}")
+        log.warning(f"[APP] Collector réel indisponible ({e}); utilisation du mock ⚠️")
+        try:
+            from sandbox.web_monitor.common.collector.log_collector.collector import LogCollector
+            import tempfile
 
+            tmp1 = tempfile.NamedTemporaryFile(delete=False).name
+            tmp2 = tempfile.NamedTemporaryFile(delete=False).name
+            app.state.collector = LogCollector(tmp1, tmp2)
+            log.info("[APP] Collector simulé attaché à app.state.collector (fallback)")
+        except Exception as e2:
+            log.error(f"[APP] Impossible d’attacher un collector (réel ni simulé): {e2}")
 
-    # Enregistrement des routes (API et WebSocket)
+    # ------------------------------------------------------------------
+    # 🔌 Enregistrement des routes
+    # ------------------------------------------------------------------
     register_api_routes(app)
     register_ws_routes(app)
 
-    # Log de démarrage
-    # log.info("Application FastAPI configurée avec CORS et sécurité LAN")
-
-
-    #Route de santé (health check)
+    # ------------------------------------------------------------------
+    # 💓 Health Check
+    # ------------------------------------------------------------------
     @app.get("/api/health")
     async def health_check(request: Request):
         token = request.headers.get("X-API-Token")
@@ -113,11 +120,8 @@ def create_app(cfg):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         return {"status": "ok"}
 
-    # Ajout du router API
-    # from sandbox.web_monitor.common import app
     from sandbox.web_monitor.common.app.api_routes import router as api_router
     app.include_router(api_router)
 
     log.info("Application FastAPI configurée avec CORS et sécurité LAN")
-    app.state.cfg = cfg  # 🔹 Rendre la configuration accessible aux routes WS
     return app

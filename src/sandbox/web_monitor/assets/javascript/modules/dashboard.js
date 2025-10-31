@@ -46,9 +46,7 @@ class DashboardModule {
     initializeManagers() {
         // Configuration WebSocket
         const wsConfig = {
-            url: 'ws://localhost:8050/ws/v1/pipeline',
-            reconnectInterval: 5000,
-            maxReconnectAttempts: 10
+            url: 'ws://localhost:8050/ws/v1/pipeline'
         };
 
         // Configuration UI

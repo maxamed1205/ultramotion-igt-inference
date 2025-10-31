@@ -14,6 +14,7 @@ Ce fichier est volontairement autonome et documenté en français.
 """
 
 from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -24,18 +25,18 @@ from typing import Any
 
 import uvicorn
 
-# IMPORTANT : import du patch d'async_logging pour garantir la compatibilité
-# d'encodage sous Windows. Ne pas appeler de fonctions d'initialisation ici.
+# -------------------------------------------------------------------------
+# ✅ IMPORTANT — ajouter src/ au PYTHONPATH AVANT les imports de sandbox.*
+# -------------------------------------------------------------------------
+SRC_PATH = str(Path(__file__).resolve().parents[2])
+if SRC_PATH not in sys.path:
+    sys.path.insert(0, SRC_PATH)
 
-# Ajoute le dossier 'src' au PYTHONPATH
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+# -------------------------------------------------------------------------
+# Compatibilité logging et import des modules locaux
+# -------------------------------------------------------------------------
+from core.monitoring import async_logging  # type: ignore
 
-from core.monitoring import async_logging # type: ignore
-
-
-# Tentative d'import de la fonction utilitaire du module common; si elle
-# n'existe pas encore, on définit un stub qui lèvera une erreur lisible au
-# moment du chargement de la configuration (load_configuration gèrera l'erreur).
 try:
     from sandbox.web_monitor.common.config_loader import load_dashboard_config
 except Exception:

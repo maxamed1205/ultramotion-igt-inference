@@ -40,11 +40,11 @@ class UIManager {
      * Diagnostic de la structure DOM
      */
     diagnosticDOM() {
-        console.log('🔧 [DIAGNOSTIC] Vérification de la structure DOM...');
+        // console.log('🔧 [DIAGNOSTIC] Vérification de la structure DOM...');
         
         // Vérification de la barre de latence principale
         const latencyBar = document.getElementById('latency-bar');
-        console.log('🔧 [DIAGNOSTIC] Barre de latence:', latencyBar ? 'trouvée' : 'NON TROUVÉE');
+        // console.log('🔧 [DIAGNOSTIC] Barre de latence:', latencyBar ? 'trouvée' : 'NON TROUVÉE');
         
         // Vérification de chaque segment
         const segmentIds = [
@@ -59,23 +59,23 @@ class UIManager {
             const element = document.getElementById(id);
             if (element) {
                 const computedStyle = getComputedStyle(element);
-                console.log(`🔧 [DIAGNOSTIC] ${id}:`, {
-                    trouvé: 'OUI',
-                    classes: element.className,
-                    styleWidth: element.style.width,
-                    computedWidth: computedStyle.width,
-                    display: computedStyle.display,
-                    backgroundColor: computedStyle.backgroundColor,
-                    visibility: computedStyle.visibility
-                });
-            } else {
+                // console.log(`🔧 [DIAGNOSTIC] ${id}:`, {
+                //     trouvé: 'OUI',
+                //     classes: element.className,
+                //     styleWidth: element.style.width,
+                //     computedWidth: computedStyle.width,
+                //     display: computedStyle.display,
+                //     backgroundColor: computedStyle.backgroundColor,
+                //     visibility: computedStyle.visibility
+                // });
+             } else {
                 console.error(`❌ [DIAGNOSTIC] ${id}: NON TROUVÉ`);
             }
         });
         
         // Vérification du parent container
         const container = document.querySelector('.c-latency-bar-container');
-        console.log('🔧 [DIAGNOSTIC] Container:', container ? 'trouvé' : 'NON TROUVÉ');
+        // console.log('🔧 [DIAGNOSTIC] Container:', container ? 'trouvé' : 'NON TROUVÉ');
     }
 
     /**

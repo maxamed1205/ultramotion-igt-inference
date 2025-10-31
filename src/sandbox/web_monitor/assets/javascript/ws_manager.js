@@ -15,8 +15,6 @@ class WebSocketManager {
         const base = config.url || 'ws://localhost:8050/ws/v1/pipeline'; // ✅ endpoint correct
         this.config = {
             url: base,
-            reconnectInterval: config.reconnectInterval || 5000,
-            maxReconnectAttempts: config.maxReconnectAttempts || 10,
             ...config
         };
 
@@ -47,7 +45,7 @@ connect() {
             
         } catch (error) {
             console.error('❌ Erreur lors de la création WebSocket:', error);
-            this.scheduleReconnect();
+            // this.scheduleReconnect();
         }
     }
 
@@ -92,7 +90,6 @@ connect() {
         console.log('⚠️ WebSocket fermé');
         this.isConnected = false;
         this.emit('connection_status', { status: 'disconnected' });
-        this.scheduleReconnect();
     }
 
     /**
