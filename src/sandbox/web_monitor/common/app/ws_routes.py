@@ -14,7 +14,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 # ✅ Import du vrai Collector
 try:
-    from sandbox.web_monitor.common.collector.log_collector.collector import Collector
+    from sandbox.web_monitor.common.collector.log_collector.collector import LogCollector as Collector
     HAS_COLLECTOR = True
 except Exception as e:
     HAS_COLLECTOR = False
@@ -30,20 +30,13 @@ def register_ws_routes(app):
     """Attache les routes WebSocket à l'application FastAPI."""
     connected_clients = set()
 
-    # ✅ Signal d’arrêt propre partagé (placé dans app.state)
+    # ✅ Signal d’arrêt partagé (placé dans app.state)
     if not hasattr(app.state, "stop_event"):
         app.state.stop_event = asyncio.Event()
 
-    # Instance globale du Collector (si disponible)
-    if HAS_COLLECTOR:
-        if not hasattr(app.state, "collector") or not isinstance(app.state.collector, Collector):
-            try:
-                app.state.collector = Collector()
-                log.info("[Collector] Instance Collector initialisée depuis ws_routes.py")
-            except Exception as e:
-                log.error(f"[Collector] Erreur d'initialisation : {e}")
-                app.state.collector = None
-    else:
+    # Vérification Collector disponible
+    if not hasattr(app.state, "collector") or not isinstance(getattr(app.state, "collector", None), Collector):
+        log.warning("[WS] Collector non disponible — fallback mock activé.")
         app.state.collector = None
 
     # ─────────────────────────────────────────────
@@ -70,7 +63,6 @@ def register_ws_routes(app):
         security = cfg.get("dashboard", {}).get("security", {})
         enabled = security.get("enabled", False)
         expected = security.get("token")
-
         token = websocket.query_params.get("token")
 
         # 🔒 Sécurité optionnelle
@@ -82,75 +74,98 @@ def register_ws_routes(app):
         await websocket.accept()
         connected_clients.add(websocket)
         log.info(f"[WS] Client connecté via /ws/v1/pipeline ({len(connected_clients)} total)")
-        try:
-            while websocket in connected_clients and not app.state.stop_event.is_set():
-                # ✅ Stop immédiat si le websocket est déjà fermé
-                if websocket.application_state.name.lower() != "connected":
-                    log.info("[WS] Connexion fermée détectée — arrêt de la boucle d'envoi.")
-                    break
 
+        # ✅ Tâche parallèle qui attend le shutdown
+        stop_event = app.state.stop_event
+        shutdown_task = asyncio.create_task(stop_event.wait())
+
+        try:
+            while (
+                websocket in connected_clients
+                and not stop_event.is_set()
+                and websocket.application_state.name.lower() == "connected"
+            ):
+                # Attente simultanée : données ou stop_event
                 try:
                     collector = getattr(app.state, "collector", None)
                     data = None
 
-                    if collector is not None:
+                    if collector is None:
+                        log.warning("[WS] ❌ Aucun collector — envoi de mock temporaire")
+                        data = _mock_metrics()
+                    else:
                         try:
-                            data = collector.get_latest_metrics()
-                            if data:
-                                log.debug(f"[Collector] Données réelles récupérées: {data}")
-                            else:
-                                log.debug("[Collector] Aucune donnée disponible pour le moment")
+                            data = collector.get_latest()
                         except Exception as e:
-                            log.error(f"[Collector] Erreur lors de get_latest_metrics(): {e}")
+                            log.error(f"[WS] 💥 Erreur collector.get_latest(): {e}")
+                            data = None
 
                     if not data:
+                        # Pas de donnée → petit mock pour éviter silence total
+                        log.debug("[WS] ⚠️ Aucune donnée collector, envoi mock")
                         data = _mock_metrics()
-                        log.debug("[WS] Fallback vers données mockées")
 
                     message = {"type": "system_metrics", "data": data}
+                    await websocket.send_text(json.dumps(message))
 
-                    # ✅ Envoi protégé (ne pas lever d'erreur si fermeture en cours)
-                    try:
-                        await websocket.send_text(json.dumps(message))
-                    except (RuntimeError, ConnectionError):
-                        log.info("[WS] Fermeture WS détectée pendant l'envoi — arrêt propre.")
-                        break
-                    except Exception as send_error:
-                        log.warning(f"[WS] Échec envoi métriques: {send_error}")
+                    # 🕒 Attente surveillée — stop instantané si shutdown détecté
+                    done, pending = await asyncio.wait(
+                        {shutdown_task},
+                        timeout=1.0,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if stop_event.is_set():
+                        log.info("[WS] 🔔 Shutdown détecté — sortie immédiate de la boucle WS")
                         break
 
+                except WebSocketDisconnect:
+                    log.info("[WS] Client pipeline déconnecté")
+                    break
+                except asyncio.CancelledError:
+                    log.info("[WS] ✅ Boucle WS annulée proprement (CancelledError)")
+                    break
                 except Exception as inner_e:
-                    log.error(f"[WS] Erreur boucle WS pipeline: {inner_e}")
+                    log.error(f"[WS] 💥 Erreur boucle WS pipeline: {inner_e}")
                     break
 
-                await asyncio.sleep(1.0)
-
-
-        except WebSocketDisconnect:
-            log.info("[WS] Client pipeline déconnecté")
-        except Exception as e:
-            log.error(f"[WS] Erreur WebSocket pipeline: {e}")
         finally:
-            connected_clients.discard(websocket)
-            await websocket.close()
+            # Nettoyage propre
+            if websocket in connected_clients:
+                connected_clients.discard(websocket)
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+            shutdown_task.cancel()
             log.info(f"[WS] Client supprimé ({len(connected_clients)} restants)")
 
     # ─────────────────────────────────────────────
-    # Route de compatibilité ancienne version
     @app.websocket("/ws")
     async def ws_legacy(websocket: WebSocket):
-        """Ancien endpoint — redirige vers pipeline."""
+        """Ancien endpoint — redirige vers pipeline (mock permanent)."""
         log.warning("[WS] Client connecté via /ws (legacy)")
         await websocket.accept()
+        connected_clients.add(websocket)
+        stop_event = app.state.stop_event
         try:
-            while websocket in connected_clients and not app.state.stop_event.is_set():
+            while websocket in connected_clients and not stop_event.is_set():
                 data = _mock_metrics()
                 await websocket.send_text(json.dumps({"type": "system_metrics", "data": data}))
-                await asyncio.sleep(1.0)
+                done, _ = await asyncio.wait(
+                    {asyncio.create_task(stop_event.wait())},
+                    timeout=1.0,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if stop_event.is_set():
+                    break
         except WebSocketDisconnect:
-            log.info("[WS] Client déconnecté (legacy)")
+            log.info("[WS] Client legacy déconnecté")
         finally:
             connected_clients.discard(websocket)
+            try:
+                await websocket.close()
+            except Exception:
+                pass
 
     # ─────────────────────────────────────────────
     @app.websocket("/ws/v1/metrics")
@@ -159,16 +174,26 @@ def register_ws_routes(app):
         log.info("[WS] Connexion WebSocket /ws/v1/metrics (mockées)")
         await websocket.accept()
         connected_clients.add(websocket)
+        stop_event = app.state.stop_event
         try:
-            while websocket in connected_clients and not app.state.stop_event.is_set():
+            while websocket in connected_clients and not stop_event.is_set():
                 data = _mock_metrics()
                 await websocket.send_text(json.dumps({"type": "system_metrics", "data": data}))
-                await asyncio.sleep(1.0)
+                done, _ = await asyncio.wait(
+                    {asyncio.create_task(stop_event.wait())},
+                    timeout=1.0,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if stop_event.is_set():
+                    break
         except WebSocketDisconnect:
             log.info("[WS] Client metrics déconnecté")
         finally:
             connected_clients.discard(websocket)
-            await websocket.close()
+            try:
+                await websocket.close()
+            except Exception:
+                pass
 
 
 # ─────────────────────────────────────────────
@@ -195,7 +220,7 @@ def _mock_metrics():
             "proc_gpu": proc_gpu,
             "gpu_cpu": gpu_cpu,
             "cpu_tx": cpu_tx,
-            "total": total
+            "total": total,
         },
     }
 
