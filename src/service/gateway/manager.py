@@ -136,6 +136,7 @@ class IGTGateway:
         return (self._running and not self._stop_event.is_set())  # retourne True si la passerelle est active et qu’aucun signal d’arrêt n’a été déclenché
 
     def start(self) -> None:
+
         if self.is_running:  # empêche de relancer le service s’il est déjà en cours d’exécution
             LOG.warning("IGTGateway déjà en cours d’exécution — démarrage ignoré")
             return

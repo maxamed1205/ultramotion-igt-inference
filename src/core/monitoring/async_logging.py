@@ -44,15 +44,15 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     """Configure an asynchronous logging subsystem with a central queue.  # docstring : configure un logging asynchrone à file centrale
 
     Behavior:  # comportement global
-    - Creates a QueueListener with file handlers for pipeline and kpi (and optionally error).  # crée un QueueListener avec handlers pipeline/kpi/(error)
-    - Attaches a QueueHandler to the named logger (default 'igt').  # attache un QueueHandler au logger nommé (par défaut "igt")
-    - If remove_yaml_file_handlers is True, attempts to remove RotatingFileHandler instances  # si True, retire les RotatingFileHandler déjà configurés
-      from the named logger to avoid duplicate writes.  # afin d’éviter les écritures en double
+    - crée un QueueListener avec handlers pipeline/kpi/(error)
+    - attache un QueueHandler au logger nommé (par défaut "igt")
+    - si True, retire les RotatingFileHandler déjà configurés
+      afin d’éviter les écritures en double
 
-    Parameters:  # paramètres
-    - yaml_cfg: the dictConfig loaded YAML; used to copy formatters/levels when present.  # dict de logging.yaml pour reproduire formats/niveaux si disponibles
+    paramètres
+    - dict de logging.yaml pour reproduire formats/niveaux si disponibles
 
-    Returns the started QueueListener which should be .stop()'ed on shutdown.  # retourne la file et le listener (à .stop() lors de l’arrêt)
+    # retourne la file et le listener (à .stop() lors de l’arrêt)
     """
     # 🔧 Force UTF-8 pour tous les flux de sortie
     try:
@@ -102,15 +102,10 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     # handler_main = RotatingFileHandler(f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5)  # handler fichier avec rotation pour pipeline.log (10 Mo, 5 backups)
     
-    handler_main = RotatingFileHandler(
-    f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5, encoding="utf-8"
-)
+    handler_main = RotatingFileHandler( f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5, encoding="utf-8")
 
-    
     handler_main.setLevel(logging.DEBUG)  # capte tous les niveaux jusqu’à DEBUG
     handler_main.setFormatter(std_formatter)  # applique le formatter standard
-
-    # handler_main.encoding = 'utf-8'  # force UTF-8 sur le handler principal
     
     try: # exclut ERROR+ de pipeline.log (redirigés vers error.log)
         from core.monitoring.filters import NoErrorFilter  # filtre maison pour retirer ERROR des handlers non dédiés
@@ -120,10 +115,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     # handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3)  # handler fichier pour kpi.log (5 Mo, 3 backups)
     # 
-    handler_kpi = RotatingFileHandler(
-        f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
-    )
-    
+    handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8")       
     handler_kpi.setLevel(logging.INFO)  # n’accepte que INFO et plus
     handler_kpi.setFormatter(kpi_formatter)  # applique le formatter KPI
 
@@ -138,9 +130,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
             from core.monitoring.kpi import KpiJsonFormatter  # formatter spécialisé JSONL pour KPI
             # kpi_jsonl_handler = RotatingFileHandler(f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3)  # handler fichier JSONL (rotation 5 Mo, 3 backups)
 
-            kpi_jsonl_handler = RotatingFileHandler(
-                f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
-            )
+            kpi_jsonl_handler = RotatingFileHandler(f"{log_dir}/kpi.jsonl", maxBytes=5_000_000, backupCount=3, encoding="utf-8")
             kpi_jsonl_handler.setLevel(logging.INFO)  # niveau INFO et supérieurs
             kpi_jsonl_handler.setFormatter(KpiJsonFormatter())  # applique le formatter JSONL
             listener_handlers.append(kpi_jsonl_handler)  # ajoute le handler JSONL au listener
@@ -149,9 +139,7 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     if create_error_handler:  # si l’option de création du handler d’erreurs est activée
         # handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3)  # error.log (≈7 Mo, 3 backups)
-        handler_err = RotatingFileHandler(
-            f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3, encoding="utf-8"
-        )
+        handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3, encoding="utf-8")
         handler_err.setLevel(logging.ERROR)  # ne prend que ERROR et CRITICAL
         handler_err.setFormatter(std_formatter)  # format standard pour les erreurs
         # handler_err.encoding = 'utf-8'   # ✅ idem

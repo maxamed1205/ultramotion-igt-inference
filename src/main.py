@@ -33,7 +33,9 @@ if "handlers" in cfg and "console" in cfg["handlers"]:
 logging.config.dictConfig(cfg)
 
 # Optionally enable async logging via environment variable ASYNC_LOG=1
-async_enabled = os.environ.get("ASYNC_LOG", "0") in ("1", "true", "on")
+# os.environ["ASYNC_LOG"] = "1"
+# async_enabled = os.environ.get("ASYNC_LOG", "0") in ("1", "true", "on")
+async_enabled = True  # Par défaut, activons l'async logging
 listener = None
 if async_enabled:
     try:
@@ -82,7 +84,6 @@ if __name__ == "__main__":
         
         gw = IGTGateway(gw_cfg)
         gw.start()
-        # print("Running... Press Ctrl+C to stop.")
         start_monitor_thread({"interval_sec": 2.0, "gateway": gw})  # start the global monitor thread and pass gateway for metrics collection
         
         # Set up signal handler for graceful shutdown (e.g., Ctrl+C)
