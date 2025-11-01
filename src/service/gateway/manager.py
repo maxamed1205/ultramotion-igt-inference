@@ -239,9 +239,22 @@ class IGTGateway:
     def receive_image(self) -> Optional[RawFrame]:  # Récupère la dernière image reçue depuis la mailbox (file d’entrée temps réel).
         if not self._mailbox:  # Si la mailbox n’existe pas ou est vide, on interrompt la lecture.
             return None  # Aucun frame à lire, retourne None.
-
         try:
             frame = self._mailbox.pop()  # Extrait le plus récent RawFrame de la mailbox (FIFO à faible latence).
+            # frame_ids = [frame.meta.frame_id for frame in mailbox]  # Collecte les IDs des frames dans la mailbox
+            # LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
+            frame_ids = [frame.meta.frame_id for frame in self._mailbox]  # Collecte les IDs des frames dans la mailbox
+            LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
+            # Log les informations de la frame extraite
+            # LOG.info(f"Image extraite de la mailbox : "
+            #         f"Frame ID : {frame.meta.frame_id}, "
+            #         f"Taille de l'image : {frame.image.shape}, "
+            #         f"Timestamp : {frame.meta.ts}, "
+            #         f"Pose valide : {frame.meta.pose.valid}, "
+            #         f"Spacing : {frame.meta.spacing}, "
+            #         f"Orientation : {frame.meta.orientation}, "
+            #         f"Device Name : {frame.meta.device_name}")
+            # exit()
             # ⚠️ TODO: vérifier/potentiellement adapter la politique de purge (clear) — actuellement drop-oldest pour garantir une fraîcheur temps réel
             self._mailbox.clear()  # Vide la mailbox pour ne conserver qu’une seule frame à traiter (préserve la fraîcheur des données).
             try:

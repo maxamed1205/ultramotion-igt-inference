@@ -129,14 +129,14 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                         rf = RawFrame(image=resized_img, meta=meta)
 
                         # LOG.info(f"Image traitée : {image_path}, Frame ID : {frame_id}, Taille de l'image : {resized_img.shape}")
-                        LOG.info(f"Image traitée : {image_path}, "
-                                f"Frame ID : {rf.meta.frame_id}, "
-                                f"Taille de l'image : {resized_img.shape}, "
-                                f"Timestamp : {rf.meta.ts}, "
-                                f"Pose valide : {rf.meta.pose.valid}, "
-                                f"Spacing : {rf.meta.spacing}, "
-                                f"Orientation : {rf.meta.orientation}, "
-                                f"Device Name : {rf.meta.device_name}")
+                        # LOG.info(f"Image traitée : {image_path}, "
+                        #         f"Frame ID : {rf.meta.frame_id}, "
+                        #         f"Taille de l'image : {resized_img.shape}, "
+                        #         f"Timestamp : {rf.meta.ts}, "
+                        #         f"Pose valide : {rf.meta.pose.valid}, "
+                        #         f"Spacing : {rf.meta.spacing}, "
+                        #         f"Orientation : {rf.meta.orientation}, "
+                        #         f"Device Name : {rf.meta.device_name}")
                         try:
                             mailbox.append(rf)
                         except Exception:
@@ -146,6 +146,10 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                             except Exception:
                                 pass
                             LOG.exception("Échec d'ajout de la frame simulée dans la mailbox")
+                        # Affiche l'état de la mailbox avec les informations de la frame
+                        # Logge la taille actuelle de la mailbox et les IDs des frames qu'elle contient dans un seul log
+                        frame_ids = [frame.meta.frame_id for frame in mailbox]  # Collecte les IDs des frames dans la mailbox
+                        LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
                     else:
                         print(f"[SIMULATION] Erreur de chargement de l'image {image_path}")
 

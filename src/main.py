@@ -115,8 +115,19 @@ if __name__ == "__main__":
         gw.start()
         start_monitor_thread({"interval_sec": 2.0, "gateway": gw})  # start the global monitor thread and pass gateway for metrics collection
         
+        # gw.receive_image()  # start receiving images
         # Set up signal handler for graceful shutdown (e.g., Ctrl+C)
         signal.signal(signal.SIGINT, shutdown_handler)
+        # Test single iteration of receive_image()
+        # Attendre un peu que le thread RX démarre et traite quelques images
+        time.sleep(1)  # 500ms devraient suffire
+
+        frame = gw.receive_image()
+        # if frame:
+        #     logging.getLogger("igt.service").info(f"Image received: Frame ID {frame.meta.frame_id}")
+        # else:
+        #     logging.getLogger("igt.service").info("No new frames in mailbox.")
+        exit()
 
         # Main loop to wait for shutdown signal (Windows-compatible)
         try:
