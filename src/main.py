@@ -15,15 +15,35 @@ import threading
 LOG_CFG = os.path.join(os.path.dirname(__file__), "config", "logging.yaml")
 LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
 
-# create logs directory if needed (idempotent)
-os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True) # Créer un répertoire de logs si nécessaire (idempotent)
 
-# Load logging config and adjust console level according to LOG_MODE
-with open(LOG_CFG, "r", encoding="utf-8") as f:
+# Fonction pour supprimer les fichiers dans le dossier logs
+def clear_log_directory(log_dir):
+    """Supprimer tous les fichiers dans le répertoire des logs"""
+    if os.path.exists(log_dir):
+        for file_name in os.listdir(log_dir):
+            file_path = os.path.join(log_dir, file_name)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    logging.info(f"Fichier supprimé: {file_path}")
+                elif os.path.isdir(file_path):
+                    # Supprimer les fichiers dans les sous-dossiers
+                    for subfile in os.listdir(file_path):
+                        os.remove(os.path.join(file_path, subfile))
+                        logging.info(f"Fichier supprimé dans sous-dossier: {os.path.join(file_path, subfile)}")
+            except Exception as e:
+                logging.error(f"Erreur lors de la suppression de {file_path}: {e}")
+    else:
+        logging.warning(f"Le répertoire {log_dir} n'existe pas")
+
+# Supprimer les fichiers de logs avant chaque test
+clear_log_directory(LOG_DIR)
+
+with open(LOG_CFG, "r", encoding="utf-8") as f:# Charger la configuration de journalisation et ajuster le niveau de la console en fonction de LOG_MODE
     cfg = yaml.safe_load(f)
 
-# Allow runtime override of console verbosity: LOG_MODE=dev -> INFO, LOG_MODE=perf -> WARNING
-log_mode = os.environ.get("LOG_MODE", "perf").lower()
+log_mode = os.environ.get("LOG_MODE", "perf").lower() # Autoriser la modification dynamique du niveau de verbosité de la console : LOG_MODE=dev -> INFO, LOG_MODE=perf -> WARNING
 if "handlers" in cfg and "console" in cfg["handlers"]:
     if log_mode == "dev":
         cfg["handlers"]["console"]["level"] = "INFO"
@@ -39,8 +59,7 @@ async_enabled = True  # Par défaut, activons l'async logging
 listener = None
 if async_enabled:
     try:
-        # Setup an async listener that mirrors YAML formatters and writes pipeline/kpi
-        log_queue, listener = setup_async_logging(
+        log_queue, listener = setup_async_logging( # Configurer un écouteur asynchrone qui reproduit les formateurs YAML et écrit les pipelines/KPI
             log_dir=os.path.abspath(LOG_DIR),
             attach_to_logger="igt",
             yaml_cfg=cfg,
@@ -60,6 +79,19 @@ else:
     logging.getLogger("igt.service").info(f"Async logging disabled; LOG_MODE={log_mode} ASYNC_LOG=off")
 
 logging.getLogger("igt.service").info("Logging initialized successfully.")
+
+# 🔧 TESTS DE DEBUG POUR LE SYSTEME DE LOGGING
+print("[DEBUG] === TESTS DE SEPARATION DES LOGS ===")
+logging.getLogger("igt.service").info("TEST: Message INFO depuis igt.service")
+logging.getLogger("igt.service").warning("TEST: Message WARNING depuis igt.service")
+logging.getLogger("igt.service").error("TEST: Message ERROR depuis igt.service")
+logging.getLogger("igt.kpi").info("TEST: Message KPI depuis igt.kpi")
+logging.getLogger("igt.monitor").info("TEST: Message INFO depuis igt.monitor")
+logging.getLogger("igt.monitor").error("TEST: Message ERROR depuis igt.monitor")
+print("[DEBUG] === FIN DES TESTS ===")
+
+
+exit()
 
 # Create a global stop event
 stop_event = threading.Event()

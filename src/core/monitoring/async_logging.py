@@ -104,20 +104,32 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
     
     handler_main = RotatingFileHandler( f"{log_dir}/pipeline.log", maxBytes=10_000_000, backupCount=5, encoding="utf-8")
 
-    handler_main.setLevel(logging.DEBUG)  # capte tous les niveaux jusqu’à DEBUG
+    handler_main.setLevel(logging.DEBUG)  # capte tous les niveaux jusqu'à DEBUG
     handler_main.setFormatter(std_formatter)  # applique le formatter standard
     
     try: # exclut ERROR+ de pipeline.log (redirigés vers error.log)
-        from core.monitoring.filters import NoErrorFilter  # filtre maison pour retirer ERROR des handlers non dédiés
-        handler_main.addFilter(NoErrorFilter())  # ajoute le filtre NoErrorFilter sur pipeline.log
-    except Exception:
-        pass  # tolère l’absence du filtre sans casser l’initialisation
+        from core.monitoring.filters import PipelineFilter  # nouveau filtre complet pour pipeline
+        handler_main.addFilter(PipelineFilter())  # ajoute le filtre PipelineFilter sur pipeline.log
+        print(f"[DEBUG] PipelineFilter ajouté au handler pipeline.log")
+    except Exception as e:
+        print(f"[DEBUG] Impossible d'ajouter PipelineFilter: {e}")
+        pass  # tolère l'absence du filtre sans casser l'initialisation
 
     # handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3)  # handler fichier pour kpi.log (5 Mo, 3 backups)
     # 
     handler_kpi = RotatingFileHandler(f"{log_dir}/kpi.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8")       
-    handler_kpi.setLevel(logging.INFO)  # n’accepte que INFO et plus
+    handler_kpi.setLevel(logging.INFO)  # n'accepte que INFO et plus
     handler_kpi.setFormatter(kpi_formatter)  # applique le formatter KPI
+    
+    # ✅ NOUVEAU : Filtre pour ne garder que les messages igt.kpi
+    try:
+        from core.monitoring.filters import KpiOnlyFilter
+        handler_kpi.addFilter(KpiOnlyFilter())
+        print(f"[DEBUG] KpiOnlyFilter ajouté au handler kpi.log")
+    except Exception as e:
+        print(f"[DEBUG] Impossible d'ajouter KpiOnlyFilter: {e}")
+    
+    print(f"[DEBUG] Handler KPI créé avec niveau INFO")
 
     # handler_kpi.encoding = 'utf-8'   # identique UTF-8 sur le handler KPI
     # option d’un sink KPI au format JSONL via variable d’environnement
@@ -137,13 +149,47 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
         except Exception:
             pass  # si indisponible, on ignore sans interrompre l’installation
 
-    if create_error_handler:  # si l’option de création du handler d’erreurs est activée
+    if create_error_handler:  # si l'option de création du handler d'erreurs est activée
         # handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3)  # error.log (≈7 Mo, 3 backups)
         handler_err = RotatingFileHandler(f"{log_dir}/error.log", maxBytes=7_340_032, backupCount=3, encoding="utf-8")
         handler_err.setLevel(logging.ERROR)  # ne prend que ERROR et CRITICAL
         handler_err.setFormatter(std_formatter)  # format standard pour les erreurs
+        
+        # ✅ NOUVEAU : Filtre pour ne garder que les messages ERROR+
+        try:
+            from core.monitoring.filters import ErrorOnlyFilter
+            handler_err.addFilter(ErrorOnlyFilter())
+            print(f"[DEBUG] ErrorOnlyFilter ajouté au handler error.log")
+        except Exception as e:
+            print(f"[DEBUG] Impossible d'ajouter ErrorOnlyFilter: {e}")
+        
         # handler_err.encoding = 'utf-8'   # ✅ idem
-        listener_handlers.append(handler_err)  # ajoute le handler d’erreurs à la liste du listener
+        listener_handlers.append(handler_err)  # ajoute le handler d'erreurs à la liste du listener
+        print(f"[DEBUG] Handler ERROR créé avec niveau ERROR")
+    
+    print(f"[DEBUG] Handlers configurés pour QueueListener: {len(listener_handlers)} handlers")
+
+    # --- DEBUG GUARD: allow stopping early to inspect handlers / files ---
+    try:
+        async_debug = os.getenv("ASYNC_DEBUG", "0").lower() in ("1", "true", "on")
+        async_step = os.getenv("ASYNC_DEBUG_STEP", "")
+    except Exception:
+        async_debug = False
+        async_step = ""
+
+    if async_debug and async_step in ("handlers", "1"):
+        print("[ASYNC_DEBUG] listener_handlers:", [type(h).__name__ for h in listener_handlers])
+        for h in listener_handlers:
+            try:
+                print("[ASYNC_DEBUG] handler:", type(h), getattr(h, 'baseFilename', None))
+            except Exception:
+                print("[ASYNC_DEBUG] handler repr:", repr(h))
+        try:
+            print("[ASYNC_DEBUG] log_dir listing:", os.listdir(log_dir))
+        except Exception:
+            pass
+        print("[ASYNC_DEBUG] EXIT for debug step=handlers")
+        sys.exit(0)
 
 
     # 🧹 Supprime les handlers existants du logger "igt" et du root avant d’ajouter le QueueHandler
@@ -157,8 +203,39 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
 
     listener = QueueListener(log_queue, *listener_handlers)  # crée le QueueListener avec tous les handlers de sortie
     listener.start()  # démarre le thread interne du QueueListener
+    print(f"[DEBUG] QueueListener démarré avec {len(listener_handlers)} handlers")
 
-    _log_queue = log_queue  # une copie de la référence dans une variable globale, ce qui permet à d’autres fonctions d’y accéder plus tard, mémorise la file globale
+    # --- DEBUG GUARD: inspect listener state right after start ---
+    try:
+        async_debug = os.getenv("ASYNC_DEBUG", "0").lower() in ("1", "true", "on")
+        async_step = os.getenv("ASYNC_DEBUG_STEP", "")
+    except Exception:
+        async_debug = False
+        async_step = ""
+
+    if async_debug and async_step in ("after_listener", "2"):
+        print("[ASYNC_DEBUG] listener object:", listener)
+        th = getattr(listener, "thread", None) or getattr(listener, "_thread", None)
+        print("[ASYNC_DEBUG] listener thread:", th)
+        try:
+            print("[ASYNC_DEBUG] is_listener_alive():", is_listener_alive())
+        except Exception as e:
+            print("[ASYNC_DEBUG] is_listener_alive() failed:", e)
+        try:
+            print("[ASYNC_DEBUG] queue qsize:", log_queue.qsize())
+        except Exception:
+            print("[ASYNC_DEBUG] failed to read queue qsize")
+        # Try to emit a couple of test messages to verify routing
+        try:
+            logging.getLogger(attach_to_logger).info("ASYNC_DEBUG_TEST: message via attach_to_logger")
+            logging.getLogger("igt.kpi").info("ASYNC_DEBUG_KPI: ts test")
+            print("[ASYNC_DEBUG] Sent test log messages to loggers")
+        except Exception as e:
+            print("[ASYNC_DEBUG] logging send failed:", e)
+        print("[ASYNC_DEBUG] EXIT for debug step=after_listener")
+        sys.exit(0)
+
+    _log_queue = log_queue  # une copie de la référence dans une variable globale, ce qui permet à d'autres fonctions d'y accéder plus tard, mémorise la file globale
     _listener_obj = listener  # mémorise le listener global
 
 
@@ -267,6 +344,43 @@ def setup_async_logging(  # fonction d’installation du sous-système de loggin
             except Exception:
                 pass  # ignore les erreurs de retrait
         root.addHandler(queue_handler)  # attache le QueueHandler au root (pipeline asynchrone global)
+
+    # --- DEBUG GUARD: inspect final state after attachment ---
+    try:
+        async_debug = os.getenv("ASYNC_DEBUG", "0").lower() in ("1", "true", "on")
+        async_step = os.getenv("ASYNC_DEBUG_STEP", "")
+    except Exception:
+        async_debug = False
+        async_step = ""
+
+    if async_debug and async_step in ("after_attach", "3"):
+        try:
+            print("[ASYNC_DEBUG] Final listener object:", listener)
+            th = getattr(listener, "thread", None) or getattr(listener, "_thread", None)
+            print("[ASYNC_DEBUG] Final listener thread:", th)
+            print("[ASYNC_DEBUG] is_listener_alive():", is_listener_alive())
+        except Exception as e:
+            print("[ASYNC_DEBUG] failed to inspect listener:", e)
+        try:
+            print("[ASYNC_DEBUG] queue qsize:", log_queue.qsize())
+        except Exception:
+            print("[ASYNC_DEBUG] failed to read queue qsize")
+        # Emit test messages which should be processed by the QueueListener into files
+        try:
+            logging.getLogger(attach_to_logger).info("ASYNC_DEBUG_AFTER_ATTACH: test message to pipeline")
+            logging.getLogger("igt.kpi").info("ASYNC_DEBUG_AFTER_ATTACH: kpi test line")
+            logging.getLogger(attach_to_logger).error("ASYNC_DEBUG_AFTER_ATTACH: test error goes to error.log")
+            print("[ASYNC_DEBUG] Sent test messages; waiting briefly for listener to flush...")
+            import time
+            time.sleep(0.5)
+            try:
+                print("[ASYNC_DEBUG] log_dir listing after messages:", os.listdir(log_dir))
+            except Exception:
+                pass
+        except Exception as e:
+            print("[ASYNC_DEBUG] sending test messages failed:", e)
+        print("[ASYNC_DEBUG] EXIT for debug step=after_attach")
+        sys.exit(0)
 
     return log_queue, listener  # tuple (file de logs, QueueListener démarré)
 

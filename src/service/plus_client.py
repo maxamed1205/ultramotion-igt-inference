@@ -67,14 +67,14 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
         if _image_files is None:
             _image_files = sorted(glob(str(DATASET_PATH / "*.jpg")))
             _image_index = 0
-            print(f"[SIMULATION] Chargement des images depuis le dossier pour simulation ({len(_image_files)} images trouvées)")
-    
+            LOG.info(f"[RX - SIM] Chargement des images depuis le dossier pour simulation ({len(_image_files)} images trouvées)")
+
     # Boucle principale de réception (tourne en continu tant que le thread n'est pas arrêté)
     while not stop_event.is_set():  # continue tant que le signal d'arrêt global n'a pas été activé
         start = time.time()  # enregistre l'heure de début du cycle (utile pour le calcul de FPS ou latence)
 
         if stop_event.is_set(): # Si l'arrêt a été demandé, on quitte proprement la boucle
-            print("[SIMULATION] Arrêt demandé, sortie de la boucle principale")
+            LOG.info("[RX - SIM] Arrêt demandé, sortie de la boucle principale")
             break
 
         try:
@@ -111,7 +111,6 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
             else:  # Mode simulation - traiter UNE SEULE image par cycle
                 if _image_files and _image_index < len(_image_files):
                     image_path = _image_files[_image_index]
-                    _image_index = (_image_index + 1) % len(_image_files)  # Boucle cyclique
                     
                     # Charger l'image avec OpenCV
                     img = cv2.imread(str(image_path))
@@ -123,6 +122,16 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                         frame_id += 1
                         meta = FrameMeta(frame_id=frame_id, ts=time.time())
                         rf = RawFrame(image=resized_img, meta=meta)
+
+                        # LOG.info(f"Image traitée : {image_path}, Frame ID : {frame_id}, Taille de l'image : {resized_img.shape}")
+                        LOG.info(f"Image traitée : {image_path}, "
+                                f"Frame ID : {rf.meta.frame_id}, "
+                                f"Taille de l'image : {resized_img.shape}, "
+                                f"Timestamp : {rf.meta.ts}, "
+                                f"Pose valide : {rf.meta.pose.valid}, "
+                                f"Spacing : {rf.meta.spacing}, "
+                                f"Orientation : {rf.meta.orientation}, "
+                                f"Device Name : {rf.meta.device_name}")
                         try:
                             mailbox.append(rf)
                         except Exception:
@@ -134,6 +143,12 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                             LOG.exception("Échec d'ajout de la frame simulée dans la mailbox")
                     else:
                         print(f"[SIMULATION] Erreur de chargement de l'image {image_path}")
+
+                    # Incrémenter l'index et arrêter si on a traité toutes les images
+                    _image_index += 1
+                    if _image_index >= len(_image_files):  # Si on a parcouru toutes les images
+                        print("[SIMULATION] Toutes les images ont été traitées.")
+                        break  # Arrêter la boucle une fois que toutes les images ont été traitées
 
                 time.sleep(0.04)  # Simuler 25 FPS
 
@@ -148,4 +163,4 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
     except Exception:
         LOG.exception("event_cb a échoué lors de la déconnexion")  # log l'erreur sans interrompre la fermeture
 
-    LOG.info("run_plus_client arrêté")  # message d'information indiquant l'arrêt propre du thread RX
+    LOG.info("[RX - SIM]run_plus_client arrêté")  # message d'information indiquant l'arrêt propre du thread RX

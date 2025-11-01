@@ -40,25 +40,60 @@ filters:
 # HANDLERS
 # ─────────────────────────────────────────────────────────────
 handlers:
-  console:  # unique handler : affichage dans la console
-    class: logging.StreamHandler  # sortie standard (stdout)
-    formatter: standard  # utilise le format standard défini plus haut
-    level: WARNING  # niveau minimum (sera ajusté dynamiquement par main.py selon LOG_MODE)
-    filters: [perf_filter]  # applique le filtre de performance (désactive logs trop fréquents)
+  console:
+    class: logging.StreamHandler  # Handler de sortie standard (affiche dans la console)
+    formatter: standard  # Utilise le format standard défini pour l'affichage des logs
+    level: WARNING  # Seulement les logs de niveau WARNING et supérieur seront affichés
+    filters: [perf_filter]  # Applique le filtre pour réduire la verbosité en mode "perf"
+  
+  kpi_file:
+    class: logging.FileHandler  # Handler pour l'écriture dans un fichier
+    filename: "logs/kpi.log"  # Fichier où les métriques KPI seront enregistrées
+    formatter: kpi  # Utilise le format kpi pour l'enregistrement des métriques
+    level: INFO  # Seulement les logs de niveau INFO ou supérieurs seront enregistrés
+    filters: [no_error]  # Applique un filtre pour éviter que les erreurs ne soient loguées dans ce fichier
+
+  error_file:
+    class: logging.FileHandler  # Handler pour l'écriture dans un fichier d'erreurs
+    filename: "logs/error.log"  # Fichier où les erreurs seront enregistrées
+    formatter: standard  # Utilise le format standard pour les logs d'erreurs
+    level: ERROR  # Seulement les erreurs (niveau ERROR et CRITICAL) seront enregistrées
+
+  pipeline_file:
+    class: logging.FileHandler  # Handler pour l'écriture dans le fichier des logs généraux du pipeline
+    filename: "logs/pipeline.log"  # Fichier où toutes les étapes du pipeline seront loguées
+    formatter: standard  # Utilise le format standard pour l'enregistrement des logs
+    level: DEBUG  # Enregistre tous les logs de niveau DEBUG et supérieur (logs détaillés pour toute l'exécution)
 
 # ─────────────────────────────────────────────────────────────
 # LOGGERS PAR MODULE
 # ─────────────────────────────────────────────────────────────
-loggers:
-  igt:  # logger racine de toute la suite Ultramotion
-    level: INFO  # niveau par défaut (modifiable en runtime)
-    handlers: [console]  # affiche uniquement sur la console (fichiers gérés par async_logging)
-    propagate: no  # empêche la propagation vers le logger racine Python
 
-  igt.receiver:  # module de réception (thread RX)
-    level: DEBUG  # détail utile pour débogage de flux RX
-    handlers: [console]  # console uniquement
-    propagate: no  # pas de remontée
+loggers:
+  igt:
+    level: INFO  # Niveau de log par défaut pour ce logger (log de niveau INFO et supérieur)
+    handlers: [console, pipeline_file]  # Les logs seront envoyés à la console et au fichier pipeline.log
+    propagate: no  # Empêche la propagation des logs vers les loggers parents (évite la duplication)
+
+  igt.kpi:
+    level: INFO  # Seuls les logs de niveau INFO et supérieur seront enregistrés pour ce logger
+    handlers: [kpi_file]  # Les logs seront envoyés uniquement au fichier kpi.log (pour les métriques KPI)
+    propagate: no  # Empêche la propagation vers les loggers parents pour éviter la duplication des logs dans d'autres fichiers
+
+  igt.error:
+    level: ERROR  # Seuls les logs de niveau ERROR et CRITICAL seront enregistrés pour ce logger
+    handlers: [error_file]  # Les logs d'erreurs seront envoyés au fichier error.log
+    propagate: no  # Empêche la propagation vers les loggers parents (cela garantit que seules les erreurs sont enregistrées ici)
+
+  igt.service:
+    level: INFO  # Niveau de log INFO, affichera des informations importantes mais pas les détails de débogage
+    handlers: [console, pipeline_file]  # Envoie les logs à la fois à la console et au fichier pipeline.log
+    propagate: no  # Empêche la propagation des logs vers les loggers parents, ce qui évite les duplications
+
+  igt.receiver:
+    level: DEBUG  # Niveau de log DEBUG, utile pour capturer des informations détaillées sur la réception des données
+    handlers: [console, pipeline_file]  # Envoie les logs à la console et au fichier pipeline.log
+    propagate: no  # Empêche la propagation vers les loggers parents afin de ne pas dupliquer les logs ailleurs
 
   igt.queues:  # gestion des files et buffers
     level: INFO
@@ -81,16 +116,6 @@ loggers:
     propagate: no
 
   igt.monitor:  # supervision et KPIs internes
-    level: INFO
-    handlers: [console]
-    propagate: no
-
-  igt.kpi:  # logger dédié aux métriques (redirigé vers kpi.log par async_logging)
-    level: INFO
-    handlers: [console]  # on garde console uniquement ici
-    propagate: no
-
-  igt.service:  # orchestration (gateway, detection, etc.)
     level: INFO
     handlers: [console]
     propagate: no
@@ -125,15 +150,6 @@ loggers:
     handlers: [console]
     propagate: no
     
-  igt.mock:  # racine des modules de simulation (mock gateway runner)
-    level: INFO
-    handlers: [console]
-    propagate: no
-
-  igt.mock.log_utils:
-    level: INFO
-    handlers: [console]
-    propagate: no
 
 # ─────────────────────────────────────────────────────────────
 # LOGGER RACINE
