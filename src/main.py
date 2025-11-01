@@ -118,11 +118,35 @@ if __name__ == "__main__":
         # Set up signal handler for graceful shutdown (e.g., Ctrl+C)
         signal.signal(signal.SIGINT, shutdown_handler)
         
-        # Attendre la première frame avec synchronisation (pas de sleep arbitraire)
-        logging.getLogger("igt.service").info("En attente de la première frame...")
-        frame = gw.wait_for_frame(timeout=10.0)  # Attendre max 10 secondes
+        # Attendre qu'il y ait au moins 2 frames pour bien démontrer que pop() prend la plus récente
+        logging.getLogger("igt.service").info("En attente d'au moins 2 frames pour démontrer le comportement du pop()...")
+        
+        # Boucle pour attendre qu'il y ait au moins 2 frames dans la mailbox
+        frames_needed = 2
+        timeout = 10.0
+        start_time = time.time()
+        
+        while len(gw._mailbox) < frames_needed:
+            if time.time() - start_time > timeout:
+                logging.getLogger("igt.service").warning(f"Timeout: seulement {len(gw._mailbox)} frames reçues après {timeout}s")
+                break
+            time.sleep(0.01)  # Petite pause pour éviter de saturer le CPU
+        
+        # Maintenant que nous avons au moins 2 frames, testons le pop()
+        if len(gw._mailbox) >= frames_needed:
+            logging.getLogger("igt.service").info(f"Parfait! Nous avons {len(gw._mailbox)} frames. Test du comportement pop()...")
+            frame = gw.receive_image()
+            if frame:
+                # Calculer les frame_ids de la mailbox après réception
+                frame_ids = [f.meta.frame_id for f in gw._mailbox] if gw._mailbox else []
+                logging.getLogger("igt.service").info(f"Image received: Frame ID {frame.meta.frame_id}")
+                logging.getLogger("igt.service").info(f"[main.py] Mailbox après extraction : taille={len(gw._mailbox)}, IDs restants={frame_ids}")
+            else:
+                logging.getLogger("igt.service").info("Aucune frame reçue.")
+        else:
+            logging.getLogger("igt.service").info("Pas assez de frames pour démontrer le comportement.")
+        
         exit()
-
 
         # Main loop to wait for shutdown signal (Windows-compatible)
         try:

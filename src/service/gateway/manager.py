@@ -246,12 +246,21 @@ class IGTGateway:
             frame_ids_before = [frame.meta.frame_id for frame in self._mailbox]
             LOG.info(f"[Manager.py receive_image AVANT pop] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids_before}")
             
-            frame = self._mailbox.pop()  # Extrait le plus récent RawFrame de la mailbox (FIFO à faible latence).
+            # AdaptiveDeque.pop() retire l'élément le plus récent (le plus à droite, dernier ajouté)
+            # car deque.append() ajoute à droite et deque.pop() retire à droite
+            #
+            # Visualisation du deque (mailbox):
+            # [frame_1] <- [frame_2] <- [frame_3] <- [frame_4] (plus récente)
+            #    ↑                                      ↑
+            #  ANCIEN                               RÉCENT
+            #  (popleft())                          (pop())
+            #
+            frame = self._mailbox.pop()  # Extrait le plus récent RawFrame de la mailbox (LIFO pour la fraîcheur).
             
             # Log APRÈS le pop() pour voir ce qui reste
             frame_ids_after = [frame.meta.frame_id for frame in self._mailbox]
             LOG.info(f"[Manager.py receive_image APRÈS pop] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids_after}")
-            LOG.info(f"[Manager.py receive_image] Frame extraite : ID {frame.meta.frame_id}")
+            LOG.info(f"[Manager.py receive_image] FRAME LA PLUS RECENTE extraite : ID {frame.meta.frame_id} (derniere ajoutee a droite du deque)")
             # Log les informations de la frame extraite
             # LOG.info(f"Image extraite de la mailbox : "
             #         f"Frame ID : {frame.meta.frame_id}, "

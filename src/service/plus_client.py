@@ -156,7 +156,7 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                         # Affiche l'état de la mailbox avec les informations de la frame
                         # Logge la taille actuelle de la mailbox et les IDs des frames qu'elle contient dans un seul log
                         frame_ids = [frame.meta.frame_id for frame in mailbox]  # Collecte les IDs des frames dans la mailbox
-                        LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
+                        LOG.info(f"[RX - SIM] Frame ID {frame_id} AJOUTEE A DROITE du deque (la plus recente). Mailbox : taille={len(mailbox)}, IDs={frame_ids}")
                     else:
                         print(f"[SIMULATION] Erreur de chargement de l'image {image_path}")
 
