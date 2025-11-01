@@ -7,7 +7,7 @@ L'API est volontairement simple pour que cette fonction puisse être directement
 utilisée dans `IGTGateway.start()` comme `run_plus_client`.
 """
 from glob import glob
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 import time
 import logging
 import numpy as np
@@ -24,13 +24,14 @@ _image_files = None
 _image_index = 0
 _simulation_mode_logged = False  # flag pour afficher le message de simulation une seule fois
 
-def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable] = None, event_cb: Optional[Callable] = None) -> None:
+def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable] = None, event_cb: Optional[Callable] = None, rx_ready_event: Optional[Any] = None) -> None:
     """Thread RX : client IGTLink vers PlusServer.
 
     - Reçoit des messages IMAGE (et plus tard TRANSFORM),
     - Empile les RawFrame dans la mailbox (file d'entrée de la passerelle),
     - Appelle stats_cb(fps, ts) toutes les 2 secondes si fourni,
     - Appelle event_cb('rx_connect', {...}) / ('rx_disconnect', {...}) pour notifier les connexions.
+    - Signale rx_ready_event quand une frame est ajoutée à la mailbox.
     """
     global _image_files, _image_index, _simulation_mode_logged
     
@@ -101,6 +102,9 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                 rf = RawFrame(image=arr, meta=meta)  # encapsule l'image et ses métadonnées dans un objet RawFrame
                 try:
                     mailbox.append(rf)  # place la frame dans la file d'entrée de la passerelle (AdaptiveDeque)
+                    # Signaler qu'une nouvelle frame est disponible
+                    if rx_ready_event:
+                        rx_ready_event.set()
                 except Exception:
                     try:
                         from core.monitoring.kpi import increment_drops
@@ -139,6 +143,9 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                         #         f"Device Name : {rf.meta.device_name}")
                         try:
                             mailbox.append(rf)
+                            # Signaler qu'une nouvelle frame est disponible
+                            if rx_ready_event:
+                                rx_ready_event.set()
                         except Exception:
                             try:
                                 from core.monitoring.kpi import increment_drops

@@ -87,6 +87,7 @@ class IGTGateway:
         # --- Gestion des threads
         self._stop_event: threading.Event = threading.Event()  # signal d'arrêt partagé entre tous les threads (permet un arrêt propre et coordonné)
         self._tx_ready: threading.Event = threading.Event()    # 🔬 OPTIMISATION : signal Event pour réveiller instantanément le thread TX quand une frame est disponible dans _outbox
+        self._rx_ready: threading.Event = threading.Event()    # 🔬 SYNCHRONISATION : signal Event pour indiquer qu'une frame RX est disponible dans _mailbox
         self._rx_thread: Optional[threading.Thread] = None     # thread de réception des images et poses (depuis PlusServer)
         self._tx_thread: Optional[threading.Thread] = None     # thread d'envoi des résultats (vers 3D Slicer)
         self._supervisor_thread: Optional[threading.Thread] = None  # thread de supervision (surveille débit, latence, état des threads)
@@ -155,12 +156,13 @@ class IGTGateway:
             raise RuntimeError("THREAD_REGISTRY ne contient pas l’entrée 'rx' (vérifier service.registry)")  # erreur explicite si la fonction RX n’est pas trouvée
 
         rx_args = (  # arguments passés au thread RX lors de sa création
-            self._mailbox,           # file d’entrée pour stocker les frames reçues
-            self._stop_event,        # signal d’arrêt partagé
+            self._mailbox,           # file d'entrée pour stocker les frames reçues
+            self._stop_event,        # signal d'arrêt partagé
             self.plus_host,          # adresse du serveur PlusServer
             self.plus_port,          # port de réception IGTLink
             self.update_rx_stats,    # fonction de rappel pour mettre à jour les statistiques RX
-            self.events.emit,        # émetteur d’événements (notifications, erreurs)
+            self.events.emit,        # émetteur d'événements (notifications, erreurs)
+            self._rx_ready,          # 🔬 SYNCHRONISATION : Event pour signaler qu'une frame RX est disponible
         )
 
         try:
@@ -240,11 +242,16 @@ class IGTGateway:
         if not self._mailbox:  # Si la mailbox n’existe pas ou est vide, on interrompt la lecture.
             return None  # Aucun frame à lire, retourne None.
         try:
+            # Log AVANT le pop() pour voir l'état réel de la mailbox
+            frame_ids_before = [frame.meta.frame_id for frame in self._mailbox]
+            LOG.info(f"[Manager.py receive_image AVANT pop] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids_before}")
+            
             frame = self._mailbox.pop()  # Extrait le plus récent RawFrame de la mailbox (FIFO à faible latence).
-            # frame_ids = [frame.meta.frame_id for frame in mailbox]  # Collecte les IDs des frames dans la mailbox
-            # LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
-            frame_ids = [frame.meta.frame_id for frame in self._mailbox]  # Collecte les IDs des frames dans la mailbox
-            LOG.info(f"[RX - SIM] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids}")
+            
+            # Log APRÈS le pop() pour voir ce qui reste
+            frame_ids_after = [frame.meta.frame_id for frame in self._mailbox]
+            LOG.info(f"[Manager.py receive_image APRÈS pop] Taille actuelle de la mailbox : {len(self._mailbox)}, IDs actuels des frames dans la mailbox : {frame_ids_after}")
+            LOG.info(f"[Manager.py receive_image] Frame extraite : ID {frame.meta.frame_id}")
             # Log les informations de la frame extraite
             # LOG.info(f"Image extraite de la mailbox : "
             #         f"Frame ID : {frame.meta.frame_id}, "
@@ -293,7 +300,30 @@ class IGTGateway:
             return frame  # Retourne la frame extraite de la mailbox pour traitement en aval.
 
         except Exception:
-            return None  # En cas d’erreur inattendue (accès concurrent, corruption mémoire, etc.), retourne None.
+            return None  # En cas d'erreur inattendue (accès concurrent, corruption mémoire, etc.), retourne None.
+
+    def wait_for_frame(self, timeout: float = 5.0) -> Optional[RawFrame]:
+        """Attendre qu'une frame soit disponible dans la mailbox avec synchronisation.
+        
+        Args:
+            timeout: Temps maximum d'attente en secondes (défaut: 5.0s)
+            
+        Returns:
+            RawFrame si une frame est disponible, None si timeout ou erreur
+        """
+        try:
+            # Attendre que l'Event _rx_ready soit signalé (une frame est disponible)
+            if self._rx_ready.wait(timeout=timeout):
+                # Réinitialiser l'Event pour la prochaine fois
+                self._rx_ready.clear()
+                # Appeler receive_image() pour récupérer la frame
+                return self.receive_image()
+            else:
+                LOG.warning(f"Timeout après {timeout}s en attente d'une frame RX")
+                return None
+        except Exception:
+            LOG.exception("Erreur lors de l'attente d'une frame")
+            return None
 
     def send_mask(self, mask_array: Any, meta: Dict[str, Any]) -> bool:  # Envoie un masque de segmentation et ses métadonnées vers 3D Slicer.
         """
