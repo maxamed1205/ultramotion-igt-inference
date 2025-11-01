@@ -24,8 +24,8 @@ class NoErrorFilter(logging.Filter):  # second filtre, aussi dérivé de logging
 
     def filter(self, record: logging.LogRecord) -> bool:  # méthode appliquée à chaque log
         result = record.levelno < logging.ERROR  # retourne True uniquement pour les messages inférieurs à ERROR (DEBUG, INFO, WARNING)
-        if not result:  # Si c'est une erreur qui serait filtrée
-            print(f"[DEBUG] NoErrorFilter: FILTRE message ERROR/CRITICAL: {record.getMessage()[:100]}")
+        # if not result:  # Si c'est une erreur qui serait filtrée
+            # print(f"[DEBUG] NoErrorFilter: FILTRE message ERROR/CRITICAL: {record.getMessage()[:100]}")
         return result
 
 
@@ -39,32 +39,3 @@ class KpiOnlyFilter(logging.Filter):
         else:
             print(f"[DEBUG] KpiOnlyFilter: ACCEPTE message KPI: {record.getMessage()[:50]}")
         return result
-
-
-class ErrorOnlyFilter(logging.Filter):
-    """Filtre ne laissant passer que les messages ERROR et CRITICAL"""
-    
-    def filter(self, record: logging.LogRecord) -> bool:
-        result = record.levelno >= logging.ERROR
-        if result:
-            print(f"[DEBUG] ErrorOnlyFilter: ACCEPTE message ERROR/CRITICAL de {record.name}: {record.getMessage()[:50]}")
-        return result
-
-
-class PipelineFilter(logging.Filter):
-    """Filtre pour pipeline.log : accepte tout SAUF les erreurs ET les messages KPI"""
-    
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Rejette les erreurs (elles vont vers error.log)
-        if record.levelno >= logging.ERROR:
-            print(f"[DEBUG] PipelineFilter: FILTRE ERROR/CRITICAL de {record.name}: {record.getMessage()[:50]}")
-            return False
-        
-        # Rejette les messages KPI (ils vont vers kpi.log)
-        if record.name == "igt.kpi":
-            print(f"[DEBUG] PipelineFilter: FILTRE message KPI: {record.getMessage()[:50]}")
-            return False
-        
-        # Accepte tout le reste
-        print(f"[DEBUG] PipelineFilter: ACCEPTE message de {record.name}: {record.getMessage()[:50]}")
-        return True

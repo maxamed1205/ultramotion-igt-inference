@@ -22,6 +22,7 @@ LOG = logging.getLogger("igt.plus_client")  # création d'un logger spécifique 
 # Variables globales pour la simulation
 _image_files = None
 _image_index = 0
+_simulation_mode_logged = False  # flag pour afficher le message de simulation une seule fois
 
 def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable] = None, event_cb: Optional[Callable] = None) -> None:
     """Thread RX : client IGTLink vers PlusServer.
@@ -31,7 +32,7 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
     - Appelle stats_cb(fps, ts) toutes les 2 secondes si fourni,
     - Appelle event_cb('rx_connect', {...}) / ('rx_disconnect', {...}) pour notifier les connexions.
     """
-    global _image_files, _image_index
+    global _image_files, _image_index, _simulation_mode_logged
     
     try:
         import pyigtl  # tente d'importer la vraie bibliothèque OpenIGTLink (communication réseau)
@@ -109,6 +110,10 @@ def run_plus_client(mailbox, stop_event, host, port, stats_cb: Optional[Callable
                     LOG.exception("Échec d'ajout de la frame reçue dans la mailbox")  # log en cas d'erreur d'insertion
 
             else:  # Mode simulation - traiter UNE SEULE image par cycle
+                # Afficher le message d'erreur une seule fois
+                if not _simulation_mode_logged:
+                    LOG.error("Mode [RX Simulation] activé - Traitement d'une seule image. Fichier : src/service/plus_client.py, ligne ~111")
+                    _simulation_mode_logged = True
                 if _image_files and _image_index < len(_image_files):
                     image_path = _image_files[_image_index]
                     

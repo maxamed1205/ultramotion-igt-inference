@@ -43,7 +43,15 @@ clear_log_directory(LOG_DIR)
 with open(LOG_CFG, "r", encoding="utf-8") as f:# Charger la configuration de journalisation et ajuster le niveau de la console en fonction de LOG_MODE
     cfg = yaml.safe_load(f)
 
-log_mode = os.environ.get("LOG_MODE", "perf").lower() # Autoriser la modification dynamique du niveau de verbosité de la console : LOG_MODE=dev -> INFO, LOG_MODE=perf -> WARNING
+# Fix file paths to be absolute
+if "handlers" in cfg:
+    for handler_name, handler_config in cfg["handlers"].items():
+        if "filename" in handler_config and handler_config["filename"].startswith("logs/"):
+            relative_path = handler_config["filename"]
+            absolute_path = os.path.join(LOG_DIR, relative_path.replace("logs/", ""))
+            cfg["handlers"][handler_name]["filename"] = absolute_path
+
+log_mode = os.environ.get("LOG_MODE", "perf").lower() # Autoriser la modification dynamique du niveau de verbosité de la console : LOG_MODE=dev -> INFO, LOG_MODE=perf -> WARNING
 if "handlers" in cfg and "console" in cfg["handlers"]:
     if log_mode == "dev":
         cfg["handlers"]["console"]["level"] = "INFO"
@@ -53,7 +61,8 @@ if "handlers" in cfg and "console" in cfg["handlers"]:
 logging.config.dictConfig(cfg)
 
 # Optionally enable async logging via environment variable ASYNC_LOG=1
-# os.environ["ASYNC_LOG"] = "1"
+os.environ["ASYNC_DEBUG"] = "1"
+os.environ["ASYNC_DEBUG_STEP"] = "after_attach"
 # async_enabled = os.environ.get("ASYNC_LOG", "0") in ("1", "true", "on")
 async_enabled = True  # Par défaut, activons l'async logging
 listener = None
@@ -64,34 +73,22 @@ if async_enabled:
             attach_to_logger="igt",
             yaml_cfg=cfg,
             remove_yaml_file_handlers=True,
-            replace_root=False,
+            # replace_root=False,
+            create_error_handler=True,  # si True, crée un handler dédié error.log (sink unique des erreurs)
+
         )
         # start health monitor for the async subsystem
         try:
             start_health_monitor(interval=5.0)
         except Exception:
             logging.getLogger("igt.service").debug("Failed to start async health monitor")
-        logging.getLogger("igt.service").info(f"Async logging enabled; LOG_MODE={log_mode} ASYNC_LOG=on")
     except Exception:
         logging.getLogger("igt.service").exception("Failed to enable async logging; falling back to YAML file handlers")
         listener = None
 else:
     logging.getLogger("igt.service").info(f"Async logging disabled; LOG_MODE={log_mode} ASYNC_LOG=off")
 
-logging.getLogger("igt.service").info("Logging initialized successfully.")
-
-# 🔧 TESTS DE DEBUG POUR LE SYSTEME DE LOGGING
-print("[DEBUG] === TESTS DE SEPARATION DES LOGS ===")
-logging.getLogger("igt.service").info("TEST: Message INFO depuis igt.service")
-logging.getLogger("igt.service").warning("TEST: Message WARNING depuis igt.service")
-logging.getLogger("igt.service").error("TEST: Message ERROR depuis igt.service")
-logging.getLogger("igt.kpi").info("TEST: Message KPI depuis igt.kpi")
-logging.getLogger("igt.monitor").info("TEST: Message INFO depuis igt.monitor")
-logging.getLogger("igt.monitor").error("TEST: Message ERROR depuis igt.monitor")
-print("[DEBUG] === FIN DES TESTS ===")
-
-
-exit()
+# exit()
 
 # Create a global stop event
 stop_event = threading.Event()

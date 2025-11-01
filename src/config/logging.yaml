@@ -64,6 +64,7 @@ handlers:
     filename: "logs/pipeline.log"  # Fichier où toutes les étapes du pipeline seront loguées
     formatter: standard  # Utilise le format standard pour l'enregistrement des logs
     level: DEBUG  # Enregistre tous les logs de niveau DEBUG et supérieur (logs détaillés pour toute l'exécution)
+    filters: [no_error]  # Applique le filtre pour éviter que les erreurs soient dupliquées (elles vont déjà dans error.log)
 
 # ─────────────────────────────────────────────────────────────
 # LOGGERS PAR MODULE
@@ -87,17 +88,17 @@ loggers:
 
   igt.service:
     level: INFO  # Niveau de log INFO, affichera des informations importantes mais pas les détails de débogage
-    handlers: [console, pipeline_file]  # Envoie les logs à la fois à la console et au fichier pipeline.log
+    handlers: [pipeline_file, error_file]  # Envoie les logs à la console, pipeline.log et error.log (pour les erreurs)
     propagate: no  # Empêche la propagation des logs vers les loggers parents, ce qui évite les duplications
 
   igt.receiver:
     level: DEBUG  # Niveau de log DEBUG, utile pour capturer des informations détaillées sur la réception des données
-    handlers: [console, pipeline_file]  # Envoie les logs à la console et au fichier pipeline.log
+    handlers: [console, pipeline_file, error_file]  # Envoie les logs à la console, pipeline.log et error.log (pour les erreurs)
     propagate: no  # Empêche la propagation vers les loggers parents afin de ne pas dupliquer les logs ailleurs
 
   igt.queues:  # gestion des files et buffers
     level: INFO
-    handlers: [console]
+    handlers: [console, error_file]
     propagate: no
 
   igt.gpu:  # traitements GPU
@@ -148,6 +149,16 @@ loggers:
   igt.gateway.test:  # tests gateway (dataset mock, etc.)
     level: DEBUG  # ✅ ACTIVER DEBUG pour voir tous les détails du test
     handlers: [console]
+    propagate: no
+
+  igt.gateway.supervisor:  # thread de supervision (heartbeat, monitoring, autotune)
+    level: INFO
+    handlers: [pipeline_file]  # logs normaux dans pipeline, pas dans error
+    propagate: no
+
+  igt.plus_client:  # client de réception IGTLink (PlusServer)
+    level: INFO
+    handlers: [console, pipeline_file, error_file]  # logs normaux dans console/pipeline, erreurs dans error.log
     propagate: no
     
 
